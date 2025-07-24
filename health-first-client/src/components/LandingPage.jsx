@@ -1,7 +1,18 @@
 import React from "react";
-import { Stethoscope, Heart, ArrowRight, Shield, Users } from "lucide-react";
+import {
+  Stethoscope,
+  Heart,
+  ArrowRight,
+  Shield,
+  Users,
+  UserPlus,
+} from "lucide-react";
 
-const LandingPage = ({ onProviderLogin, onPatientLogin }) => {
+const LandingPage = ({
+  onProviderLogin,
+  onPatientLogin,
+  onPatientRegister,
+}) => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 flex items-center justify-center p-4">
       <div className="w-full max-w-4xl">
@@ -107,6 +118,17 @@ const LandingPage = ({ onProviderLogin, onPatientLogin }) => {
               Patient Login
               <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
             </button>
+
+            {/* Patient Registration Button */}
+            <div className="mt-4">
+              <button
+                onClick={onPatientRegister}
+                className="w-full bg-green-100 text-green-700 font-semibold py-3 px-6 rounded-lg hover:bg-green-200 transition-colors duration-200 flex items-center justify-center group"
+              >
+                <UserPlus className="w-4 h-4 mr-2" />
+                New Patient Registration
+              </button>
+            </div>
           </div>
         </div>
 

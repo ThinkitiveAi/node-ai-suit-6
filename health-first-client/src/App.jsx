@@ -3,10 +3,12 @@ import LandingPage from "./components/LandingPage";
 import ProviderLogin from "./components/ProviderLogin";
 import ProviderRegistration from "./components/ProviderRegistration";
 import PatientLogin from "./components/PatientLogin";
+import PatientRegistration from "./components/PatientRegistration";
+import ProviderAvailability from "./components/ProviderAvailability";
 import "./App.css";
 
 function App() {
-  const [currentScreen, setCurrentScreen] = useState("landing"); // 'landing', 'login', 'register'
+  const [currentScreen, setCurrentScreen] = useState("landing"); // 'landing', 'login', 'register', 'availability'
   const [userType, setUserType] = useState("provider"); // 'provider' or 'patient'
 
   const handleNavigateToLanding = () => {
@@ -15,6 +17,14 @@ function App() {
 
   const handleNavigateToRegister = () => {
     setCurrentScreen("register");
+  };
+
+  const handleNavigateToPatientRegister = () => {
+    setCurrentScreen("patient-register");
+  };
+
+  const handleNavigateToAvailability = () => {
+    setCurrentScreen("availability");
   };
 
   const handleNavigateToLogin = () => {
@@ -47,6 +57,7 @@ function App() {
         <LandingPage
           onProviderLogin={handleProviderLogin}
           onPatientLogin={handlePatientLogin}
+          onPatientRegister={handleNavigateToPatientRegister}
         />
       ) : currentScreen === "login" ? (
         userType === "provider" ? (
@@ -54,6 +65,7 @@ function App() {
             onRegisterClick={handleNavigateToRegister}
             onPatientLoginClick={handleSwitchToPatient}
             onBackToLanding={handleNavigateToLanding}
+            onAvailabilityClick={handleNavigateToAvailability}
           />
         ) : (
           <PatientLogin
@@ -61,8 +73,15 @@ function App() {
             onBackToLanding={handleNavigateToLanding}
           />
         )
-      ) : (
+      ) : currentScreen === "register" ? (
         <ProviderRegistration
+          onLoginClick={handleNavigateToLogin}
+          onBackToLanding={handleNavigateToLanding}
+        />
+      ) : currentScreen === "availability" ? (
+        <ProviderAvailability onBackToDashboard={handleNavigateToLogin} />
+      ) : (
+        <PatientRegistration
           onLoginClick={handleNavigateToLogin}
           onBackToLanding={handleNavigateToLanding}
         />
