@@ -1,15 +1,30 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import LandingPage from "./components/LandingPage";
 import ProviderLogin from "./components/ProviderLogin";
 import ProviderRegistration from "./components/ProviderRegistration";
 import PatientLogin from "./components/PatientLogin";
 import PatientRegistration from "./components/PatientRegistration";
 import ProviderAvailability from "./components/ProviderAvailability";
+import Dashboard from "./components/Dashboard";
+import { authUtils } from "./services/api";
 import "./App.css";
 
 function App() {
-  const [currentScreen, setCurrentScreen] = useState("landing"); // 'landing', 'login', 'register', 'availability'
+  const [currentScreen, setCurrentScreen] = useState("landing"); // 'landing', 'login', 'register', 'availability', 'dashboard'
   const [userType, setUserType] = useState("provider"); // 'provider' or 'patient'
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  // Check authentication status on component mount
+  useEffect(() => {
+    const authenticated = authUtils.isAuthenticated();
+    setIsAuthenticated(authenticated);
+
+    if (authenticated) {
+      const userType = authUtils.getUserType();
+      setUserType(userType);
+      setCurrentScreen("dashboard");
+    }
+  }, []);
 
   const handleNavigateToLanding = () => {
     setCurrentScreen("landing");
@@ -50,6 +65,17 @@ function App() {
     setUserType("provider");
     setCurrentScreen("login");
   };
+
+  const handleLogout = () => {
+    authUtils.clearAuthData();
+    setIsAuthenticated(false);
+    setCurrentScreen("landing");
+  };
+
+  // If user is authenticated, show dashboard
+  if (isAuthenticated && currentScreen === "dashboard") {
+    return <Dashboard onLogout={handleLogout} />;
+  }
 
   return (
     <div className="App">

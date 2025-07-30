@@ -10,6 +10,7 @@ import {
   Heart,
   ArrowLeft,
 } from "lucide-react";
+import { providerAuthAPI, authUtils } from "../services/api";
 
 const ProviderLogin = ({
   onRegisterClick,
@@ -82,19 +83,29 @@ const ProviderLogin = ({
 
     setIsLoading(true);
 
-    // Simulate API call
     try {
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      const response = await providerAuthAPI.login(formData);
 
-      // Simulate successful login
-      setIsSuccess(true);
-      setTimeout(() => {
-        // Redirect to dashboard (in real app, this would be handled by router)
-        console.log("Redirecting to dashboard...");
-      }, 1000);
-    } catch {
+      if (response.success) {
+        // Save auth data
+        authUtils.saveAuthData(response, "provider");
+
+        setIsSuccess(true);
+        setTimeout(() => {
+          // Redirect to dashboard
+          window.location.reload();
+        }, 1000);
+      } else {
+        setErrors({
+          general: response.message || "Login failed. Please try again.",
+        });
+      }
+    } catch (error) {
+      console.error("Login error:", error);
       setErrors({
-        general: "Invalid credentials. Please try again.",
+        general:
+          error.response?.data?.message ||
+          "Invalid credentials. Please try again.",
       });
     } finally {
       setIsLoading(false);

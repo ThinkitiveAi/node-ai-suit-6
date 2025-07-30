@@ -20,6 +20,7 @@ import {
   UserPlus,
   Users,
 } from "lucide-react";
+import { patientAuthAPI } from "../services/api";
 
 const PatientRegistration = ({ onLoginClick, onBackToLanding }) => {
   const [currentStep, setCurrentStep] = useState(1);
@@ -226,10 +227,47 @@ const PatientRegistration = ({ onLoginClick, onBackToLanding }) => {
     setIsLoading(true);
 
     try {
-      await new Promise((resolve) => setTimeout(resolve, 3000));
-      setIsSuccess(true);
-    } catch {
-      setErrors({ general: "Registration failed. Please try again." });
+      const registrationData = {
+        first_name: formData.firstName,
+        last_name: formData.lastName,
+        email: formData.email,
+        phone_number: formData.phone,
+        date_of_birth: formData.dateOfBirth,
+        gender: formData.gender.toLowerCase(),
+        password: formData.password,
+        confirm_password: formData.confirmPassword,
+        address: {
+          street: formData.streetAddress,
+          city: formData.city,
+          state: formData.state,
+          zip: formData.zipCode,
+        },
+        emergency_contact: {
+          name: formData.emergencyName,
+          phone: formData.emergencyPhone,
+          relationship: formData.emergencyRelationship,
+        },
+        marketing_opt_in: false,
+        data_retention_consent: formData.agreeToPrivacy,
+        hipaa_consent: formData.agreeToHIPAA,
+      };
+
+      const response = await patientAuthAPI.register(registrationData);
+
+      if (response.success) {
+        setIsSuccess(true);
+      } else {
+        setErrors({
+          general: response.message || "Registration failed. Please try again.",
+        });
+      }
+    } catch (error) {
+      console.error("Registration error:", error);
+      setErrors({
+        general:
+          error.response?.data?.message ||
+          "Registration failed. Please try again.",
+      });
     } finally {
       setIsLoading(false);
     }

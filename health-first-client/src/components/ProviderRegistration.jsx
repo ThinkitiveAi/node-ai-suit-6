@@ -17,6 +17,7 @@ import {
   X,
   ArrowLeft,
 } from "lucide-react";
+import { providerAuthAPI } from "../services/api";
 
 const ProviderRegistration = ({ onLoginClick, onBackToLanding }) => {
   const [formData, setFormData] = useState({
@@ -189,12 +190,43 @@ const ProviderRegistration = ({ onLoginClick, onBackToLanding }) => {
 
     setIsLoading(true);
 
-    // Simulate API call
     try {
-      await new Promise((resolve) => setTimeout(resolve, 3000));
-      setIsSuccess(true);
-    } catch {
-      setErrors({ general: "Registration failed. Please try again." });
+      const registrationData = {
+        first_name: formData.firstName,
+        last_name: formData.lastName,
+        email: formData.email,
+        phone_number: formData.phone,
+        password: formData.password,
+        license_number: formData.licenseNumber,
+        specialization: formData.specialization,
+        years_of_experience: parseInt(formData.yearsExperience),
+        qualifications: formData.qualifications,
+        practice_name: formData.practiceName,
+        address: {
+          street: formData.streetAddress,
+          city: formData.city,
+          state: formData.state,
+          zip: formData.zipCode,
+        },
+        practice_type: formData.practiceType,
+      };
+
+      const response = await providerAuthAPI.register(registrationData);
+
+      if (response.success) {
+        setIsSuccess(true);
+      } else {
+        setErrors({
+          general: response.message || "Registration failed. Please try again.",
+        });
+      }
+    } catch (error) {
+      console.error("Registration error:", error);
+      setErrors({
+        general:
+          error.response?.data?.message ||
+          "Registration failed. Please try again.",
+      });
     } finally {
       setIsLoading(false);
     }

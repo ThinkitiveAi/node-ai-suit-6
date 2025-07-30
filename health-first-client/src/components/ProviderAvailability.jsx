@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Calendar,
   Clock,
@@ -29,6 +29,7 @@ import {
   Eye,
   EyeOff,
 } from "lucide-react";
+import { providerAvailabilityAPI } from "../services/api";
 
 const ProviderAvailability = ({ onBackToDashboard }) => {
   const [currentView, setCurrentView] = useState("week"); // 'month', 'week', 'day'
@@ -41,38 +42,21 @@ const ProviderAvailability = ({ onBackToDashboard }) => {
   const [isLoading, setIsLoading] = useState(false);
 
   // Sample availability data
-  const [availability, setAvailability] = useState([
-    {
-      id: 1,
-      date: "2024-01-15",
-      startTime: "09:00",
-      endTime: "10:00",
-      type: "consultation",
-      status: "available",
-      duration: 30,
-      notes: "General consultation",
-    },
-    {
-      id: 2,
-      date: "2024-01-15",
-      startTime: "10:30",
-      endTime: "11:00",
-      type: "follow-up",
-      status: "booked",
-      duration: 30,
-      notes: "Follow-up appointment",
-    },
-    {
-      id: 3,
-      date: "2024-01-15",
-      startTime: "11:00",
-      endTime: "12:00",
-      type: "consultation",
-      status: "blocked",
-      duration: 60,
-      notes: "Lunch break",
-    },
-  ]);
+  const [availability, setAvailability] = useState([]);
+
+  // Load availability data on component mount
+  useEffect(() => {
+    loadAvailabilityData();
+  }, []);
+
+  const loadAvailabilityData = async () => {
+    try {
+      const response = await providerAvailabilityAPI.getAvailability();
+      setAvailability(response.data || []);
+    } catch (error) {
+      console.error("Error loading availability:", error);
+    }
+  };
 
   const [formData, setFormData] = useState({
     date: "",
@@ -219,31 +203,30 @@ const ProviderAvailability = ({ onBackToDashboard }) => {
     setAvailability((prev) => prev.filter((slot) => slot.id !== slotId));
   };
 
-  const handleFormSubmit = (e) => {
+  const handleFormSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
 
-    setTimeout(() => {
+    try {
       if (showEditForm && editingSlot) {
         // Edit existing slot
-        setAvailability((prev) =>
-          prev.map((slot) =>
-            slot.id === editingSlot.id
-              ? { ...slot, ...formData, endTime: formData.startTime }
-              : slot
-          )
+        const response = await providerAvailabilityAPI.updateAvailability(
+          editingSlot.id,
+          formData
         );
+        if (response.success) {
+          await loadAvailabilityData(); // Reload data
+        }
         setShowEditForm(false);
         setEditingSlot(null);
       } else {
         // Add new slot
-        const newSlot = {
-          id: Date.now(),
-          ...formData,
-          status: "available",
-          endTime: formData.startTime,
-        };
-        setAvailability((prev) => [...prev, newSlot]);
+        const response = await providerAvailabilityAPI.createAvailability(
+          formData
+        );
+        if (response.success) {
+          await loadAvailabilityData(); // Reload data
+        }
         setShowAddForm(false);
       }
 
@@ -257,8 +240,11 @@ const ProviderAvailability = ({ onBackToDashboard }) => {
         recurring: false,
         recurringDays: [],
       });
+    } catch (error) {
+      console.error("Error saving availability:", error);
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
   };
 
   const handleInputChange = (e) => {

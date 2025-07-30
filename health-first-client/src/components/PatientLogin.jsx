@@ -12,6 +12,7 @@ import {
   ArrowLeft,
   Stethoscope,
 } from "lucide-react";
+import { patientAuthAPI, authUtils } from "../services/api";
 
 const PatientLogin = ({
   onProviderLoginClick,
@@ -81,16 +82,29 @@ const PatientLogin = ({
 
     setIsLoading(true);
 
-    // Simulate API call
     try {
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      setIsSuccess(true);
-      setTimeout(() => {
-        console.log("Redirecting to patient dashboard...");
-      }, 1000);
-    } catch {
+      const response = await patientAuthAPI.login(formData);
+
+      if (response.success) {
+        // Save auth data
+        authUtils.saveAuthData(response, "patient");
+
+        setIsSuccess(true);
+        setTimeout(() => {
+          // Redirect to dashboard
+          window.location.reload();
+        }, 1000);
+      } else {
+        setErrors({
+          general: response.message || "Login failed. Please try again.",
+        });
+      }
+    } catch (error) {
+      console.error("Login error:", error);
       setErrors({
-        general: "Login failed. Please check your credentials and try again.",
+        general:
+          error.response?.data?.message ||
+          "Login failed. Please check your credentials and try again.",
       });
     } finally {
       setIsLoading(false);
