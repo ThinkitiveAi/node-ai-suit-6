@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Eye,
   EyeOff,
@@ -14,11 +15,8 @@ import {
 } from "lucide-react";
 import { patientAuthAPI, authUtils } from "../services/api";
 
-const PatientLogin = ({
-  onProviderLoginClick,
-  onBackToLanding,
-  onRegisterClick,
-}) => {
+const PatientLogin = () => {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     identifier: "",
     password: "",
@@ -91,8 +89,8 @@ const PatientLogin = ({
 
         setIsSuccess(true);
         setTimeout(() => {
-          // Redirect to dashboard
-          window.location.reload();
+          // Navigate to dashboard
+          navigate("/dashboard");
         }, 1000);
       } else {
         setErrors({
@@ -102,9 +100,7 @@ const PatientLogin = ({
     } catch (error) {
       console.error("Login error:", error);
       setErrors({
-        general:
-          error.response?.data?.message ||
-          "Login failed. Please check your credentials and try again.",
+        general: "An error occurred during login. Please try again.",
       });
     } finally {
       setIsLoading(false);
@@ -113,6 +109,18 @@ const PatientLogin = ({
 
   const togglePasswordVisibility = () => {
     setShowPassword(!showPassword);
+  };
+
+  const handleBackToLanding = () => {
+    navigate("/");
+  };
+
+  const handleProviderLoginClick = () => {
+    navigate("/provider/login");
+  };
+
+  const handleRegisterClick = () => {
+    navigate("/patient/register");
   };
 
   if (isSuccess) {
@@ -150,7 +158,7 @@ const PatientLogin = ({
         {/* Back to Landing Button */}
         <div className="mb-6">
           <button
-            onClick={onBackToLanding}
+            onClick={handleBackToLanding}
             className="flex items-center text-blue-600 hover:text-blue-700 font-medium transition-colors"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
@@ -175,7 +183,7 @@ const PatientLogin = ({
           {/* Provider Login Button */}
           <div className="mt-4">
             <button
-              onClick={onProviderLoginClick}
+              onClick={handleProviderLoginClick}
               className="inline-flex items-center px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors duration-200 text-sm font-medium"
             >
               <Stethoscope className="w-4 h-4 mr-2" />
@@ -331,7 +339,7 @@ const PatientLogin = ({
             <p className="text-sm text-gray-600">
               New patient?{" "}
               <button
-                onClick={onRegisterClick}
+                onClick={handleRegisterClick}
                 className="text-blue-600 hover:text-blue-700 font-medium transition-colors"
               >
                 Create your account

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Calendar,
   Clock,
@@ -31,7 +32,8 @@ import {
 } from "lucide-react";
 import { providerAvailabilityAPI } from "../services/api";
 
-const ProviderAvailability = ({ onBackToDashboard }) => {
+const ProviderAvailability = () => {
+  const navigate = useNavigate();
   const [currentView, setCurrentView] = useState("week"); // 'month', 'week', 'day'
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedSlots, setSelectedSlots] = useState([]);
@@ -98,10 +100,8 @@ const ProviderAvailability = ({ onBackToDashboard }) => {
         return "bg-red-500";
       case "tentative":
         return "bg-yellow-500";
-      case "break":
-        return "bg-gray-500";
       default:
-        return "bg-gray-300";
+        return "bg-gray-500";
     }
   };
 
@@ -115,15 +115,13 @@ const ProviderAvailability = ({ onBackToDashboard }) => {
         return "Blocked";
       case "tentative":
         return "Tentative";
-      case "break":
-        return "Break";
       default:
         return "Unknown";
     }
   };
 
   const formatDate = (date) => {
-    return new Date(date).toLocaleDateString("en-US", {
+    return date.toLocaleDateString("en-US", {
       weekday: "short",
       month: "short",
       day: "numeric",
@@ -144,30 +142,25 @@ const ProviderAvailability = ({ onBackToDashboard }) => {
   };
 
   const getSlotsForDate = (date) => {
-    const dateStr = date.toISOString().split("T")[0];
-    return availability.filter((slot) => slot.date === dateStr);
+    return availability.filter(
+      (slot) => new Date(slot.date).toDateString() === date.toDateString()
+    );
   };
 
   const handleDateChange = (direction) => {
     const newDate = new Date(currentDate);
-    if (direction === "prev") {
-      if (currentView === "month") {
-        newDate.setMonth(newDate.getMonth() - 1);
-      } else if (currentView === "week") {
-        newDate.setDate(newDate.getDate() - 7);
-      } else {
-        newDate.setDate(newDate.getDate() - 1);
-      }
+    if (currentView === "week") {
+      newDate.setDate(currentDate.getDate() + direction * 7);
+    } else if (currentView === "month") {
+      newDate.setMonth(currentDate.getMonth() + direction);
     } else {
-      if (currentView === "month") {
-        newDate.setMonth(newDate.getMonth() + 1);
-      } else if (currentView === "week") {
-        newDate.setDate(newDate.getDate() + 7);
-      } else {
-        newDate.setDate(newDate.getDate() + 1);
-      }
+      newDate.setDate(currentDate.getDate() + direction);
     }
     setCurrentDate(newDate);
+  };
+
+  const handleBackToDashboard = () => {
+    navigate("/dashboard");
   };
 
   const handleAddAvailability = () => {
@@ -555,7 +548,7 @@ const ProviderAvailability = ({ onBackToDashboard }) => {
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-4">
               <button
-                onClick={onBackToDashboard}
+                onClick={handleBackToDashboard}
                 className="flex items-center text-blue-600 hover:text-blue-700 font-medium transition-colors"
               >
                 <ArrowLeft className="w-4 h-4 mr-2" />

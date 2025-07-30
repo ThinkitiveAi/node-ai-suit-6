@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   User,
   Calendar,
@@ -24,7 +25,8 @@ import {
 } from "lucide-react";
 import { authUtils, providerAvailabilityAPI } from "../services/api";
 
-const Dashboard = ({ onLogout }) => {
+const Dashboard = () => {
+  const navigate = useNavigate();
   const [userType, setUserType] = useState(null);
   const [userData, setUserData] = useState(null);
   const [activeTab, setActiveTab] = useState("overview");
@@ -37,7 +39,7 @@ const Dashboard = ({ onLogout }) => {
 
     if (!type || !data) {
       // Redirect to login if no auth data
-      onLogout();
+      handleLogout();
       return;
     }
 
@@ -50,7 +52,7 @@ const Dashboard = ({ onLogout }) => {
     }
 
     setIsLoading(false);
-  }, [onLogout]);
+  }, []);
 
   const loadAvailabilityData = async () => {
     try {
@@ -63,7 +65,11 @@ const Dashboard = ({ onLogout }) => {
 
   const handleLogout = () => {
     authUtils.clearAuthData();
-    onLogout();
+    navigate("/");
+  };
+
+  const handleAvailabilityClick = () => {
+    navigate("/provider/availability");
   };
 
   if (isLoading) {
@@ -199,7 +205,10 @@ const Dashboard = ({ onLogout }) => {
             </div>
             <div className="p-6">
               <div className="space-y-3">
-                <button className="w-full flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                <button
+                  onClick={handleAvailabilityClick}
+                  className="w-full flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
                   <Plus className="w-4 h-4 mr-2" />
                   Add Availability
                 </button>

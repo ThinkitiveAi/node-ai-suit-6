@@ -1,4 +1,9 @@
-import { useState, useEffect } from "react";
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+} from "react-router-dom";
 import LandingPage from "./components/LandingPage";
 import ProviderLogin from "./components/ProviderLogin";
 import ProviderRegistration from "./components/ProviderRegistration";
@@ -9,110 +14,114 @@ import Dashboard from "./components/Dashboard";
 import { authUtils } from "./services/api";
 import "./App.css";
 
-function App() {
-  const [currentScreen, setCurrentScreen] = useState("landing"); // 'landing', 'login', 'register', 'availability', 'dashboard'
-  const [userType, setUserType] = useState("provider"); // 'provider' or 'patient'
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+// Protected Route Component
+const ProtectedRoute = ({ children, userType }) => {
+  const isAuthenticated = authUtils.isAuthenticated();
+  const currentUserType = authUtils.getUserType();
 
-  // Check authentication status on component mount
-  useEffect(() => {
-    const authenticated = authUtils.isAuthenticated();
-    setIsAuthenticated(authenticated);
-
-    if (authenticated) {
-      const userType = authUtils.getUserType();
-      setUserType(userType);
-      setCurrentScreen("dashboard");
-    }
-  }, []);
-
-  const handleNavigateToLanding = () => {
-    setCurrentScreen("landing");
-  };
-
-  const handleNavigateToRegister = () => {
-    setCurrentScreen("register");
-  };
-
-  const handleNavigateToPatientRegister = () => {
-    setCurrentScreen("patient-register");
-  };
-
-  const handleNavigateToAvailability = () => {
-    setCurrentScreen("availability");
-  };
-
-  const handleNavigateToLogin = () => {
-    setCurrentScreen("login");
-  };
-
-  const handleProviderLogin = () => {
-    setUserType("provider");
-    setCurrentScreen("login");
-  };
-
-  const handlePatientLogin = () => {
-    setUserType("patient");
-    setCurrentScreen("login");
-  };
-
-  const handleSwitchToPatient = () => {
-    setUserType("patient");
-    setCurrentScreen("login");
-  };
-
-  const handleSwitchToProvider = () => {
-    setUserType("provider");
-    setCurrentScreen("login");
-  };
-
-  const handleLogout = () => {
-    authUtils.clearAuthData();
-    setIsAuthenticated(false);
-    setCurrentScreen("landing");
-  };
-
-  // If user is authenticated, show dashboard
-  if (isAuthenticated && currentScreen === "dashboard") {
-    return <Dashboard onLogout={handleLogout} />;
+  if (!isAuthenticated) {
+    return <Navigate to="/" replace />;
   }
 
+  if (userType && currentUserType !== userType) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return children;
+};
+
+// Public Route Component (redirects to dashboard if already authenticated)
+const PublicRoute = ({ children }) => {
+  const isAuthenticated = authUtils.isAuthenticated();
+
+  if (isAuthenticated) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return children;
+};
+
+function App() {
+  const handleLogout = () => {
+    authUtils.clearAuthData();
+  };
+
   return (
-    <div className="App">
-      {currentScreen === "landing" ? (
-        <LandingPage
-          onProviderLogin={handleProviderLogin}
-          onPatientLogin={handlePatientLogin}
-          onPatientRegister={handleNavigateToPatientRegister}
-        />
-      ) : currentScreen === "login" ? (
-        userType === "provider" ? (
-          <ProviderLogin
-            onRegisterClick={handleNavigateToRegister}
-            onPatientLoginClick={handleSwitchToPatient}
-            onBackToLanding={handleNavigateToLanding}
-            onAvailabilityClick={handleNavigateToAvailability}
+    <Router>
+      <div className="App">
+        <Routes>
+          {/* Landing Page - Public */}
+          <Route
+            path="/"
+            element={
+              <PublicRoute>
+                <LandingPage />
+              </PublicRoute>
+            }
           />
-        ) : (
-          <PatientLogin
-            onProviderLoginClick={handleSwitchToProvider}
-            onBackToLanding={handleNavigateToLanding}
+
+          {/* Provider Routes */}
+          <Route
+            path="/provider/login"
+            element={
+              <PublicRoute>
+                <ProviderLogin />
+              </PublicRoute>
+            }
           />
-        )
-      ) : currentScreen === "register" ? (
-        <ProviderRegistration
-          onLoginClick={handleNavigateToLogin}
-          onBackToLanding={handleNavigateToLanding}
-        />
-      ) : currentScreen === "availability" ? (
-        <ProviderAvailability onBackToDashboard={handleNavigateToLogin} />
-      ) : (
-        <PatientRegistration
-          onLoginClick={handleNavigateToLogin}
-          onBackToLanding={handleNavigateToLanding}
-        />
-      )}
-    </div>
+
+          <Route
+            path="/provider/register"
+            element={
+              <PublicRoute>
+                <ProviderRegistration />
+              </PublicRoute>
+            }
+          />
+
+          {/* Patient Routes */}
+          <Route
+            path="/patient/login"
+            element={
+              <PublicRoute>
+                <PatientLogin />
+              </PublicRoute>
+            }
+          />
+
+          <Route
+            path="/patient/register"
+            element={
+              <PublicRoute>
+                <PatientRegistration />
+              </PublicRoute>
+            }
+          />
+
+          {/* Protected Routes */}
+          <Route
+            path="/dashboard"
+            element={
+              <ProtectedRoute>
+                <Dashboard onLogout={handleLogout} />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/provider/availability"
+            element={
+              <ProtectedRoute userType="provider">
+                <ProviderAvailability />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Catch all route - redirect to landing */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </div>
+    </Router>
   );
 }
 

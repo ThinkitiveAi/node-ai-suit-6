@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Eye,
   EyeOff,
@@ -12,12 +13,8 @@ import {
 } from "lucide-react";
 import { providerAuthAPI, authUtils } from "../services/api";
 
-const ProviderLogin = ({
-  onRegisterClick,
-  onPatientLoginClick,
-  onBackToLanding,
-  onAvailabilityClick,
-}) => {
+const ProviderLogin = () => {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     credential: "",
     password: "",
@@ -92,8 +89,8 @@ const ProviderLogin = ({
 
         setIsSuccess(true);
         setTimeout(() => {
-          // Redirect to dashboard
-          window.location.reload();
+          // Navigate to dashboard
+          navigate("/dashboard");
         }, 1000);
       } else {
         setErrors({
@@ -103,9 +100,7 @@ const ProviderLogin = ({
     } catch (error) {
       console.error("Login error:", error);
       setErrors({
-        general:
-          error.response?.data?.message ||
-          "Invalid credentials. Please try again.",
+        general: "An error occurred during login. Please try again.",
       });
     } finally {
       setIsLoading(false);
@@ -116,13 +111,29 @@ const ProviderLogin = ({
     setShowPassword(!showPassword);
   };
 
+  const handleBackToLanding = () => {
+    navigate("/");
+  };
+
+  const handleRegisterClick = () => {
+    navigate("/provider/register");
+  };
+
+  const handlePatientLoginClick = () => {
+    navigate("/patient/login");
+  };
+
+  const handleAvailabilityClick = () => {
+    navigate("/provider/availability");
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Back to Landing Button */}
         <div className="mb-6">
           <button
-            onClick={onBackToLanding}
+            onClick={handleBackToLanding}
             className="flex items-center text-blue-600 hover:text-blue-700 font-medium transition-colors"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
@@ -147,7 +158,7 @@ const ProviderLogin = ({
           {/* Patient Login Button */}
           <div className="mt-4">
             <button
-              onClick={onPatientLoginClick}
+              onClick={handlePatientLoginClick}
               className="inline-flex items-center px-4 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors duration-200 text-sm font-medium"
             >
               <Heart className="w-4 h-4 mr-2" />
@@ -169,7 +180,7 @@ const ProviderLogin = ({
                   </span>
                 </div>
                 <button
-                  onClick={onAvailabilityClick}
+                  onClick={handleAvailabilityClick}
                   className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200 text-sm"
                 >
                   Go to Availability Management
@@ -311,7 +322,7 @@ const ProviderLogin = ({
             <p className="text-sm text-gray-600">
               New provider?{" "}
               <button
-                onClick={onRegisterClick}
+                onClick={handleRegisterClick}
                 className="text-blue-600 hover:text-blue-700 font-medium transition-colors"
               >
                 Register here

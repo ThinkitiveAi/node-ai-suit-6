@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   User,
   Mail,
@@ -22,7 +23,8 @@ import {
 } from "lucide-react";
 import { patientAuthAPI } from "../services/api";
 
-const PatientRegistration = ({ onLoginClick, onBackToLanding }) => {
+const PatientRegistration = () => {
+  const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState({
     firstName: "",
@@ -129,62 +131,81 @@ const PatientRegistration = ({ onLoginClick, onBackToLanding }) => {
           newErrors.firstName = "First name is required";
         if (!formData.lastName.trim())
           newErrors.lastName = "Last name is required";
-        if (!formData.email) {
+        if (!formData.email.trim()) {
           newErrors.email = "Email is required";
-        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-          newErrors.email = "Please enter a valid email address";
+        } else {
+          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          if (!emailRegex.test(formData.email)) {
+            newErrors.email = "Please enter a valid email address";
+          }
         }
-        if (!formData.phone) {
+        if (!formData.phone.trim()) {
           newErrors.phone = "Phone number is required";
-        } else if (
-          !/^[+]?[1-9][\d]{0,15}$/.test(formData.phone.replace(/\s/g, ""))
-        ) {
-          newErrors.phone = "Please enter a valid phone number";
+        } else {
+          const phoneRegex = /^[+]?[1-9][\d]{0,15}$/;
+          if (!phoneRegex.test(formData.phone.replace(/\s/g, ""))) {
+            newErrors.phone = "Please enter a valid phone number";
+          }
         }
         if (!formData.dateOfBirth)
           newErrors.dateOfBirth = "Date of birth is required";
-        if (!formData.gender) newErrors.gender = "Please select your gender";
+        if (!formData.gender) newErrors.gender = "Gender is required";
         break;
+
       case 2:
         if (!formData.streetAddress.trim())
           newErrors.streetAddress = "Street address is required";
         if (!formData.city.trim()) newErrors.city = "City is required";
-        if (!formData.state) newErrors.state = "State is required";
+        if (!formData.state.trim()) newErrors.state = "State is required";
         if (!formData.zipCode.trim())
           newErrors.zipCode = "ZIP code is required";
         break;
+
       case 3:
         if (!formData.emergencyName.trim())
           newErrors.emergencyName = "Emergency contact name is required";
         if (!formData.emergencyRelationship)
           newErrors.emergencyRelationship = "Relationship is required";
-        if (!formData.emergencyPhone) {
-          newErrors.emergencyPhone = "Emergency phone number is required";
-        } else if (
-          !/^[+]?[1-9][\d]{0,15}$/.test(
-            formData.emergencyPhone.replace(/\s/g, "")
-          )
-        ) {
-          newErrors.emergencyPhone = "Please enter a valid phone number";
+        if (!formData.emergencyPhone.trim()) {
+          newErrors.emergencyPhone = "Emergency contact phone is required";
+        } else {
+          const phoneRegex = /^[+]?[1-9][\d]{0,15}$/;
+          if (!phoneRegex.test(formData.emergencyPhone.replace(/\s/g, ""))) {
+            newErrors.emergencyPhone = "Please enter a valid phone number";
+          }
         }
         break;
+
       case 4:
         if (!formData.password) {
           newErrors.password = "Password is required";
         } else if (formData.password.length < 8) {
           newErrors.password = "Password must be at least 8 characters long";
+        } else {
+          const passwordRegex =
+            /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/;
+          if (!passwordRegex.test(formData.password)) {
+            newErrors.password =
+              "Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character";
+          }
         }
         if (!formData.confirmPassword) {
           newErrors.confirmPassword = "Please confirm your password";
         } else if (formData.password !== formData.confirmPassword) {
           newErrors.confirmPassword = "Passwords do not match";
         }
-        if (!formData.agreeToTerms)
-          newErrors.agreeToTerms = "You must agree to the terms of service";
-        if (!formData.agreeToPrivacy)
+        if (!formData.agreeToTerms) {
+          newErrors.agreeToTerms = "You must agree to the terms and conditions";
+        }
+        if (!formData.agreeToPrivacy) {
           newErrors.agreeToPrivacy = "You must agree to the privacy policy";
-        if (!formData.agreeToHIPAA)
-          newErrors.agreeToHIPAA = "You must agree to HIPAA consent";
+        }
+        if (!formData.agreeToHIPAA) {
+          newErrors.agreeToHIPAA = "You must agree to the HIPAA consent";
+        }
+        break;
+
+      default:
         break;
     }
 
@@ -199,6 +220,7 @@ const PatientRegistration = ({ onLoginClick, onBackToLanding }) => {
       [name]: type === "checkbox" ? checked : value,
     }));
 
+    // Clear error when user starts typing
     if (errors[name]) {
       setErrors((prev) => ({
         ...prev,
@@ -209,7 +231,7 @@ const PatientRegistration = ({ onLoginClick, onBackToLanding }) => {
 
   const nextStep = () => {
     if (validateStep(currentStep)) {
-      setCurrentStep((prev) => Math.min(prev + 1, 4));
+      setCurrentStep((prev) => Math.min(prev + 1, steps.length));
     }
   };
 
@@ -220,7 +242,7 @@ const PatientRegistration = ({ onLoginClick, onBackToLanding }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!validateStep(4)) {
+    if (!validateStep(currentStep)) {
       return;
     }
 
@@ -234,8 +256,6 @@ const PatientRegistration = ({ onLoginClick, onBackToLanding }) => {
         phone_number: formData.phone,
         date_of_birth: formData.dateOfBirth,
         gender: formData.gender.toLowerCase(),
-        password: formData.password,
-        confirm_password: formData.confirmPassword,
         address: {
           street: formData.streetAddress,
           city: formData.city,
@@ -244,9 +264,11 @@ const PatientRegistration = ({ onLoginClick, onBackToLanding }) => {
         },
         emergency_contact: {
           name: formData.emergencyName,
-          phone: formData.emergencyPhone,
           relationship: formData.emergencyRelationship,
+          phone: formData.emergencyPhone,
         },
+        password: formData.password,
+        confirm_password: formData.confirmPassword,
         marketing_opt_in: false,
         data_retention_consent: formData.agreeToPrivacy,
         hipaa_consent: formData.agreeToHIPAA,
@@ -256,6 +278,9 @@ const PatientRegistration = ({ onLoginClick, onBackToLanding }) => {
 
       if (response.success) {
         setIsSuccess(true);
+        setTimeout(() => {
+          navigate("/patient/login");
+        }, 2000);
       } else {
         setErrors({
           general: response.message || "Registration failed. Please try again.",
@@ -264,13 +289,19 @@ const PatientRegistration = ({ onLoginClick, onBackToLanding }) => {
     } catch (error) {
       console.error("Registration error:", error);
       setErrors({
-        general:
-          error.response?.data?.message ||
-          "Registration failed. Please try again.",
+        general: "An error occurred during registration. Please try again.",
       });
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleBackToLanding = () => {
+    navigate("/");
+  };
+
+  const handleLoginClick = () => {
+    navigate("/patient/login");
   };
 
   if (isSuccess) {
@@ -298,7 +329,7 @@ const PatientRegistration = ({ onLoginClick, onBackToLanding }) => {
               </p>
             </div>
             <button
-              onClick={onLoginClick}
+              onClick={handleLoginClick}
               className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-200"
             >
               Go to Login
@@ -315,7 +346,7 @@ const PatientRegistration = ({ onLoginClick, onBackToLanding }) => {
         {/* Back to Landing Button */}
         <div className="mb-6">
           <button
-            onClick={onBackToLanding}
+            onClick={handleBackToLanding}
             className="flex items-center text-blue-600 hover:text-blue-700 font-medium transition-colors"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
@@ -1004,7 +1035,7 @@ const PatientRegistration = ({ onLoginClick, onBackToLanding }) => {
             <p className="text-sm text-gray-600">
               Already have an account?{" "}
               <button
-                onClick={onLoginClick}
+                onClick={handleLoginClick}
                 className="text-blue-600 hover:text-blue-700 font-medium transition-colors"
               >
                 Sign in here

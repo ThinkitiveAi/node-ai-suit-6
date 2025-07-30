@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   User,
   Mail,
@@ -19,7 +20,8 @@ import {
 } from "lucide-react";
 import { providerAuthAPI } from "../services/api";
 
-const ProviderRegistration = ({ onLoginClick, onBackToLanding }) => {
+const ProviderRegistration = () => {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     // Personal Information
     firstName: "",
@@ -98,29 +100,35 @@ const ProviderRegistration = ({ onLoginClick, onBackToLanding }) => {
       newErrors.firstName = "First name is required";
     if (!formData.lastName.trim()) newErrors.lastName = "Last name is required";
 
-    if (!formData.email) {
+    // Email validation
+    if (!formData.email.trim()) {
       newErrors.email = "Email is required";
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      newErrors.email = "Please enter a valid email address";
+    } else {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(formData.email)) {
+        newErrors.email = "Please enter a valid email address";
+      }
     }
 
-    if (!formData.phone) {
+    // Phone validation
+    if (!formData.phone.trim()) {
       newErrors.phone = "Phone number is required";
-    } else if (
-      !/^[\+]?[1-9][\d]{0,15}$/.test(formData.phone.replace(/\s/g, ""))
-    ) {
-      newErrors.phone = "Please enter a valid phone number";
+    } else {
+      const phoneRegex = /^[+]?[1-9][\d]{0,15}$/;
+      if (!phoneRegex.test(formData.phone.replace(/\s/g, ""))) {
+        newErrors.phone = "Please enter a valid phone number";
+      }
     }
 
     // Professional Information Validation
     if (!formData.licenseNumber.trim())
-      newErrors.licenseNumber = "Medical license number is required";
+      newErrors.licenseNumber = "License number is required";
     if (!formData.specialization)
       newErrors.specialization = "Specialization is required";
     if (!formData.yearsExperience)
       newErrors.yearsExperience = "Years of experience is required";
     if (!formData.qualifications.trim())
-      newErrors.qualifications = "Medical qualifications are required";
+      newErrors.qualifications = "Qualifications are required";
 
     // Practice Information Validation
     if (!formData.practiceName.trim())
@@ -133,14 +141,17 @@ const ProviderRegistration = ({ onLoginClick, onBackToLanding }) => {
     if (!formData.practiceType)
       newErrors.practiceType = "Practice type is required";
 
-    // Password Validation
+    // Password validation
     if (!formData.password) {
       newErrors.password = "Password is required";
     } else if (formData.password.length < 8) {
       newErrors.password = "Password must be at least 8 characters long";
-    } else if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(formData.password)) {
-      newErrors.password =
-        "Password must contain at least one uppercase letter, one lowercase letter, and one number";
+    } else {
+      const passwordStrength = getPasswordStrength(formData.password);
+      if (passwordStrength.score < 3) {
+        newErrors.password =
+          "Password is too weak. Please choose a stronger password.";
+      }
     }
 
     if (!formData.confirmPassword) {
@@ -149,6 +160,7 @@ const ProviderRegistration = ({ onLoginClick, onBackToLanding }) => {
       newErrors.confirmPassword = "Passwords do not match";
     }
 
+    // Terms validation
     if (!formData.agreeToTerms) {
       newErrors.agreeToTerms = "You must agree to the terms and conditions";
     }
@@ -158,26 +170,18 @@ const ProviderRegistration = ({ onLoginClick, onBackToLanding }) => {
   };
 
   const handleInputChange = (e) => {
-    const { name, value, type, checked, files } = e.target;
-
-    if (type === "file" && files[0]) {
-      const file = files[0];
-      if (file.type.startsWith("image/")) {
-        setFormData((prev) => ({ ...prev, [name]: file }));
-        const reader = new FileReader();
-        reader.onload = (e) => setPhotoPreview(e.target.result);
-        reader.readAsDataURL(file);
-      }
-    } else {
-      setFormData((prev) => ({
-        ...prev,
-        [name]: type === "checkbox" ? checked : value,
-      }));
-    }
+    const { name, value, type, checked } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: type === "checkbox" ? checked : value,
+    }));
 
     // Clear error when user starts typing
     if (errors[name]) {
-      setErrors((prev) => ({ ...prev, [name]: "" }));
+      setErrors((prev) => ({
+        ...prev,
+        [name]: "",
+      }));
     }
   };
 
@@ -196,7 +200,6 @@ const ProviderRegistration = ({ onLoginClick, onBackToLanding }) => {
         last_name: formData.lastName,
         email: formData.email,
         phone_number: formData.phone,
-        password: formData.password,
         license_number: formData.licenseNumber,
         specialization: formData.specialization,
         years_of_experience: parseInt(formData.yearsExperience),
@@ -209,12 +212,17 @@ const ProviderRegistration = ({ onLoginClick, onBackToLanding }) => {
           zip: formData.zipCode,
         },
         practice_type: formData.practiceType,
+        password: formData.password,
+        confirm_password: formData.confirmPassword,
       };
 
       const response = await providerAuthAPI.register(registrationData);
 
       if (response.success) {
         setIsSuccess(true);
+        setTimeout(() => {
+          navigate("/provider/login");
+        }, 2000);
       } else {
         setErrors({
           general: response.message || "Registration failed. Please try again.",
@@ -223,9 +231,7 @@ const ProviderRegistration = ({ onLoginClick, onBackToLanding }) => {
     } catch (error) {
       console.error("Registration error:", error);
       setErrors({
-        general:
-          error.response?.data?.message ||
-          "Registration failed. Please try again.",
+        general: "An error occurred during registration. Please try again.",
       });
     } finally {
       setIsLoading(false);
@@ -238,23 +244,30 @@ const ProviderRegistration = ({ onLoginClick, onBackToLanding }) => {
   };
 
   const getPasswordStrength = (password) => {
-    if (!password) return { strength: 0, color: "gray", text: "" };
+    let score = 0;
+    const feedback = [];
 
-    let strength = 0;
-    if (password.length >= 8) strength++;
-    if (/[a-z]/.test(password)) strength++;
-    if (/[A-Z]/.test(password)) strength++;
-    if (/\d/.test(password)) strength++;
-    if (/[^A-Za-z0-9]/.test(password)) strength++;
+    if (password.length >= 8) score++;
+    if (/[a-z]/.test(password)) score++;
+    if (/[A-Z]/.test(password)) score++;
+    if (/\d/.test(password)) score++;
+    if (/[@$!%*?&]/.test(password)) score++;
 
-    const colors = ["red", "orange", "yellow", "lightgreen", "green"];
-    const texts = ["Very Weak", "Weak", "Fair", "Good", "Strong"];
+    if (password.length < 8) feedback.push("At least 8 characters");
+    if (!/[a-z]/.test(password)) feedback.push("One lowercase letter");
+    if (!/[A-Z]/.test(password)) feedback.push("One uppercase letter");
+    if (!/\d/.test(password)) feedback.push("One number");
+    if (!/[@$!%*?&]/.test(password)) feedback.push("One special character");
 
-    return {
-      strength: Math.min(strength, 5),
-      color: colors[strength - 1] || "gray",
-      text: texts[strength - 1] || "",
-    };
+    return { score, feedback };
+  };
+
+  const handleBackToLanding = () => {
+    navigate("/");
+  };
+
+  const handleLoginClick = () => {
+    navigate("/provider/login");
   };
 
   const passwordStrength = getPasswordStrength(formData.password);
@@ -282,7 +295,7 @@ const ProviderRegistration = ({ onLoginClick, onBackToLanding }) => {
               <p>• You'll receive an approval notification</p>
             </div>
             <button
-              onClick={onLoginClick}
+              onClick={handleLoginClick}
               className="mt-6 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-200 w-full"
             >
               Go to Login
@@ -299,7 +312,7 @@ const ProviderRegistration = ({ onLoginClick, onBackToLanding }) => {
         {/* Back to Landing Button */}
         <div className="mb-6">
           <button
-            onClick={onBackToLanding}
+            onClick={handleBackToLanding}
             className="flex items-center text-blue-600 hover:text-blue-700 font-medium transition-colors"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
@@ -472,7 +485,19 @@ const ProviderRegistration = ({ onLoginClick, onBackToLanding }) => {
                       <input
                         type="file"
                         name="profilePhoto"
-                        onChange={handleInputChange}
+                        onChange={(e) => {
+                          const file = e.target.files[0];
+                          if (file && file.type.startsWith("image/")) {
+                            setFormData((prev) => ({
+                              ...prev,
+                              profilePhoto: file,
+                            }));
+                            const reader = new FileReader();
+                            reader.onload = (e) =>
+                              setPhotoPreview(e.target.result);
+                            reader.readAsDataURL(file);
+                          }
+                        }}
                         accept="image/*"
                         className="hidden"
                         id="photo-upload"
@@ -807,41 +832,31 @@ const ProviderRegistration = ({ onLoginClick, onBackToLanding }) => {
                         <div className="flex-1 bg-gray-200 rounded-full h-2">
                           <div
                             className={`h-2 rounded-full transition-all duration-300 ${
-                              passwordStrength.color === "red"
-                                ? "bg-red-500"
-                                : passwordStrength.color === "orange"
-                                ? "bg-orange-500"
-                                : passwordStrength.color === "yellow"
+                              passwordStrength.score >= 3
+                                ? "bg-green-500"
+                                : passwordStrength.score === 2
                                 ? "bg-yellow-500"
-                                : passwordStrength.color === "lightgreen"
-                                ? "bg-green-400"
-                                : passwordStrength.color === "green"
-                                ? "bg-green-600"
-                                : "bg-gray-300"
+                                : passwordStrength.score === 1
+                                ? "bg-orange-500"
+                                : "bg-red-500"
                             }`}
                             style={{
-                              width: `${
-                                (passwordStrength.strength / 5) * 100
-                              }%`,
+                              width: `${(passwordStrength.score / 5) * 100}%`,
                             }}
                           ></div>
                         </div>
                         <span
                           className={`text-xs font-medium ${
-                            passwordStrength.color === "red"
-                              ? "text-red-600"
-                              : passwordStrength.color === "orange"
-                              ? "text-orange-600"
-                              : passwordStrength.color === "yellow"
-                              ? "text-yellow-600"
-                              : passwordStrength.color === "lightgreen"
+                            passwordStrength.score >= 3
                               ? "text-green-600"
-                              : passwordStrength.color === "green"
-                              ? "text-green-700"
-                              : "text-gray-500"
+                              : passwordStrength.score === 2
+                              ? "text-yellow-600"
+                              : passwordStrength.score === 1
+                              ? "text-orange-600"
+                              : "text-red-600"
                           }`}
                         >
-                          {passwordStrength.text}
+                          {passwordStrength.feedback.join(", ")}
                         </span>
                       </div>
                     </div>
@@ -955,7 +970,7 @@ const ProviderRegistration = ({ onLoginClick, onBackToLanding }) => {
             <p className="text-sm text-gray-600">
               Already have an account?{" "}
               <button
-                onClick={onLoginClick}
+                onClick={handleLoginClick}
                 className="text-blue-600 hover:text-blue-700 font-medium transition-colors"
               >
                 Sign in here

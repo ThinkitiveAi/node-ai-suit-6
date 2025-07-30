@@ -1,4 +1,5 @@
 import React from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Stethoscope,
   Heart,
@@ -8,11 +9,21 @@ import {
   UserPlus,
 } from "lucide-react";
 
-const LandingPage = ({
-  onProviderLogin,
-  onPatientLogin,
-  onPatientRegister,
-}) => {
+const LandingPage = () => {
+  const navigate = useNavigate();
+
+  const handleProviderLogin = () => {
+    navigate("/provider/login");
+  };
+
+  const handlePatientLogin = () => {
+    navigate("/patient/login");
+  };
+
+  const handlePatientRegister = () => {
+    navigate("/patient/register");
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 flex items-center justify-center p-4">
       <div className="w-full max-w-4xl">
@@ -69,7 +80,7 @@ const LandingPage = ({
             </div>
 
             <button
-              onClick={onProviderLogin}
+              onClick={handleProviderLogin}
               className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-200 flex items-center justify-center group"
             >
               Provider Login
@@ -112,7 +123,7 @@ const LandingPage = ({
             </div>
 
             <button
-              onClick={onPatientLogin}
+              onClick={handlePatientLogin}
               className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-200 flex items-center justify-center group"
             >
               Patient Login
@@ -122,7 +133,7 @@ const LandingPage = ({
             {/* Patient Registration Button */}
             <div className="mt-4">
               <button
-                onClick={onPatientRegister}
+                onClick={handlePatientRegister}
                 className="w-full bg-green-100 text-green-700 font-semibold py-3 px-6 rounded-lg hover:bg-green-200 transition-colors duration-200 flex items-center justify-center group"
               >
                 <UserPlus className="w-4 h-4 mr-2" />
