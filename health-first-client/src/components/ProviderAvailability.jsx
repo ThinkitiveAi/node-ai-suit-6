@@ -53,8 +53,32 @@ const ProviderAvailability = () => {
 
   const loadAvailabilityData = async () => {
     try {
-      const response = await providerAvailabilityAPI.getAvailability();
-      setAvailability(response.data || []);
+      const userData = JSON.parse(localStorage.getItem("user_data") || "{}");
+      const providerId = userData._id || userData.id;
+
+      if (!providerId) {
+        console.error("Provider ID not found in user data");
+        return;
+      }
+
+      // Get current week's availability
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - startDate.getDay()); // Start of week
+      const endDate = new Date(startDate);
+      endDate.setDate(endDate.getDate() + 6); // End of week
+
+      const query = {
+        start_date: startDate.toISOString().split("T")[0],
+        end_date: endDate.toISOString().split("T")[0],
+      };
+
+      const response = await providerAvailabilityAPI.getAvailability(
+        providerId,
+        query
+      );
+      if (response.success) {
+        setAvailability(response.data.availability || []);
+      }
     } catch (error) {
       console.error("Error loading availability:", error);
     }
@@ -62,13 +86,28 @@ const ProviderAvailability = () => {
 
   const [formData, setFormData] = useState({
     date: "",
-    startTime: "",
-    endTime: "",
-    type: "consultation",
-    duration: 30,
+    start_time: "",
+    end_time: "",
+    appointment_type: "consultation",
+    slot_duration: 30,
+    break_duration: 15,
+    timezone: "America/New_York",
+    location: {
+      type: "clinic",
+      address: "",
+      room_number: "",
+    },
+    is_recurring: false,
+    recurrence_pattern: "weekly",
+    recurrence_end_date: "",
+    max_appointments_per_slot: 1,
+    pricing: {
+      base_fee: 100,
+      insurance_accepted: true,
+      currency: "USD",
+    },
+    special_requirements: [],
     notes: "",
-    recurring: false,
-    recurringDays: [],
   });
 
   const appointmentTypes = [
@@ -164,30 +203,66 @@ const ProviderAvailability = () => {
   };
 
   const handleAddAvailability = () => {
+    console.log("handleAddAvailability called");
+    const startDate = new Date();
+    const endDate = new Date();
+    endDate.setDate(endDate.getDate() + 30); // Default to 30 days from now
+
     setShowAddForm(true);
     setFormData({
-      date: currentDate.toISOString().split("T")[0],
-      startTime: "09:00",
-      endTime: "09:30",
-      type: "consultation",
-      duration: 30,
+      date: startDate.toISOString().split("T")[0],
+      start_time: "09:00",
+      end_time: "17:00",
+      appointment_type: "consultation",
+      slot_duration: 30,
+      break_duration: 15,
+      timezone: "America/New_York",
+      location: {
+        type: "clinic",
+        address: "",
+        room_number: "",
+      },
+      is_recurring: false,
+      recurrence_pattern: "weekly",
+      recurrence_end_date: endDate.toISOString().split("T")[0],
+      max_appointments_per_slot: 1,
+      pricing: {
+        base_fee: 100,
+        insurance_accepted: true,
+        currency: "USD",
+      },
+      special_requirements: [],
       notes: "",
-      recurring: false,
-      recurringDays: [],
     });
+    console.log("showAddForm set to true");
   };
 
   const handleEditSlot = (slot) => {
     setEditingSlot(slot);
     setFormData({
       date: slot.date,
-      startTime: slot.startTime,
-      endTime: slot.endTime,
-      type: slot.type,
-      duration: slot.duration,
-      notes: slot.notes,
-      recurring: false,
-      recurringDays: [],
+      start_time: slot.start_time || slot.startTime,
+      end_time: slot.end_time || slot.endTime,
+      appointment_type: slot.appointment_type || slot.type,
+      slot_duration: slot.slot_duration || slot.duration,
+      break_duration: slot.break_duration || 15,
+      timezone: slot.timezone || "America/New_York",
+      location: slot.location || {
+        type: "clinic",
+        address: "",
+        room_number: "",
+      },
+      is_recurring: slot.is_recurring || false,
+      recurrence_pattern: slot.recurrence_pattern || "weekly",
+      recurrence_end_date: slot.recurrence_end_date || "",
+      max_appointments_per_slot: slot.max_appointments_per_slot || 1,
+      pricing: slot.pricing || {
+        base_fee: 100,
+        insurance_accepted: true,
+        currency: "USD",
+      },
+      special_requirements: slot.special_requirements || [],
+      notes: slot.notes || "",
     });
     setShowEditForm(true);
   };
@@ -201,6 +276,18 @@ const ProviderAvailability = () => {
     setIsLoading(true);
 
     try {
+      // Validate dates for recurring availability
+      if (formData.is_recurring) {
+        const startDate = new Date(formData.date);
+        const endDate = new Date(formData.recurrence_end_date);
+
+        if (endDate <= startDate) {
+          alert("Recurrence end date must be after the start date");
+          setIsLoading(false);
+          return;
+        }
+      }
+
       if (showEditForm && editingSlot) {
         // Edit existing slot
         const response = await providerAvailabilityAPI.updateAvailability(
@@ -214,8 +301,15 @@ const ProviderAvailability = () => {
         setEditingSlot(null);
       } else {
         // Add new slot
+        // Clean up form data - remove recurrence fields if not recurring
+        const cleanFormData = { ...formData };
+        if (!cleanFormData.is_recurring) {
+          delete cleanFormData.recurrence_pattern;
+          delete cleanFormData.recurrence_end_date;
+        }
+
         const response = await providerAvailabilityAPI.createAvailability(
-          formData
+          cleanFormData
         );
         if (response.success) {
           await loadAvailabilityData(); // Reload data
@@ -223,15 +317,31 @@ const ProviderAvailability = () => {
         setShowAddForm(false);
       }
 
+      // Reset form data
       setFormData({
         date: "",
-        startTime: "",
-        endTime: "",
-        type: "consultation",
-        duration: 30,
+        start_time: "",
+        end_time: "",
+        appointment_type: "consultation",
+        slot_duration: 30,
+        break_duration: 15,
+        timezone: "America/New_York",
+        location: {
+          type: "clinic",
+          address: "",
+          room_number: "",
+        },
+        is_recurring: false,
+        recurrence_pattern: "weekly",
+        recurrence_end_date: "",
+        max_appointments_per_slot: 1,
+        pricing: {
+          base_fee: 100,
+          insurance_accepted: true,
+          currency: "USD",
+        },
+        special_requirements: [],
         notes: "",
-        recurring: false,
-        recurringDays: [],
       });
     } catch (error) {
       console.error("Error saving availability:", error);
@@ -242,10 +352,23 @@ const ProviderAvailability = () => {
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: type === "checkbox" ? checked : value,
-    }));
+
+    // Handle nested objects
+    if (name.includes(".")) {
+      const [parent, child] = name.split(".");
+      setFormData((prev) => ({
+        ...prev,
+        [parent]: {
+          ...prev[parent],
+          [child]: type === "checkbox" ? checked : value,
+        },
+      }));
+    } else {
+      setFormData((prev) => ({
+        ...prev,
+        [name]: type === "checkbox" ? checked : value,
+      }));
+    }
   };
 
   const renderWeekView = () => {
@@ -415,6 +538,11 @@ const ProviderAvailability = () => {
             </div>
 
             <form onSubmit={handleFormSubmit} className="space-y-4">
+              {/* Debug info */}
+              <div className="text-xs text-gray-500 mb-2">
+                Debug: showAddForm={showAddForm.toString()}, showEditForm=
+                {showEditForm.toString()}
+              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Date
@@ -435,8 +563,8 @@ const ProviderAvailability = () => {
                     Start Time
                   </label>
                   <select
-                    name="startTime"
-                    value={formData.startTime}
+                    name="start_time"
+                    value={formData.start_time}
                     onChange={handleInputChange}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     required
@@ -451,11 +579,32 @@ const ProviderAvailability = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Duration (minutes)
+                    End Time
                   </label>
                   <select
-                    name="duration"
-                    value={formData.duration}
+                    name="end_time"
+                    value={formData.end_time}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    required
+                  >
+                    {timeSlots.map((time) => (
+                      <option key={time} value={time}>
+                        {time}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Slot Duration (minutes)
+                  </label>
+                  <select
+                    name="slot_duration"
+                    value={formData.slot_duration}
                     onChange={handleInputChange}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     required
@@ -467,6 +616,22 @@ const ProviderAvailability = () => {
                     ))}
                   </select>
                 </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Break Duration (minutes)
+                  </label>
+                  <input
+                    type="number"
+                    name="break_duration"
+                    value={formData.break_duration}
+                    onChange={handleInputChange}
+                    min="0"
+                    max="120"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    required
+                  />
+                </div>
               </div>
 
               <div>
@@ -474,8 +639,8 @@ const ProviderAvailability = () => {
                   Appointment Type
                 </label>
                 <select
-                  name="type"
-                  value={formData.type}
+                  name="appointment_type"
+                  value={formData.appointment_type}
                   onChange={handleInputChange}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   required
@@ -486,6 +651,140 @@ const ProviderAvailability = () => {
                     </option>
                   ))}
                 </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Location Type
+                </label>
+                <select
+                  name="location.type"
+                  value={formData.location.type}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                >
+                  <option value="clinic">Clinic</option>
+                  <option value="hospital">Hospital</option>
+                  <option value="telemedicine">Telemedicine</option>
+                  <option value="home_visit">Home Visit</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Address
+                </label>
+                <input
+                  type="text"
+                  name="location.address"
+                  value={formData.location.address}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Enter address..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Room Number
+                </label>
+                <input
+                  type="text"
+                  name="location.room_number"
+                  value={formData.location.room_number}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Enter room number..."
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Base Fee ($)
+                  </label>
+                  <input
+                    type="number"
+                    name="pricing.base_fee"
+                    value={formData.pricing.base_fee}
+                    onChange={handleInputChange}
+                    min="0"
+                    step="0.01"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Insurance Accepted
+                  </label>
+                  <select
+                    name="pricing.insurance_accepted"
+                    value={formData.pricing.insurance_accepted}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    required
+                  >
+                    <option value={true}>Yes</option>
+                    <option value={false}>No</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Recurring Availability
+                </label>
+                <div className="space-y-3">
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      name="is_recurring"
+                      checked={formData.is_recurring}
+                      onChange={handleInputChange}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    <label className="ml-2 text-sm text-gray-700">
+                      Make this a recurring availability
+                    </label>
+                  </div>
+
+                  {formData.is_recurring && (
+                    <div className="space-y-3 pl-6">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Recurrence Pattern
+                        </label>
+                        <select
+                          name="recurrence_pattern"
+                          value={formData.recurrence_pattern}
+                          onChange={handleInputChange}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        >
+                          <option value="daily">Daily</option>
+                          <option value="weekly">Weekly</option>
+                          <option value="monthly">Monthly</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          End Date
+                        </label>
+                        <input
+                          type="date"
+                          name="recurrence_end_date"
+                          value={formData.recurrence_end_date}
+                          onChange={handleInputChange}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          required={formData.is_recurring}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div>

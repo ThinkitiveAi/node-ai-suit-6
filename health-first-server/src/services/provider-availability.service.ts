@@ -1,35 +1,38 @@
-import { Injectable, HttpException, HttpStatus, Logger } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
-import * as moment from 'moment-timezone';
-import { 
-  ProviderAvailability, 
+import { Injectable, HttpException, HttpStatus, Logger } from "@nestjs/common";
+import { InjectModel } from "@nestjs/mongoose";
+import { Model, Types } from "mongoose";
+import * as moment from "moment-timezone";
+import {
+  ProviderAvailability,
   ProviderAvailabilityDocument,
   SlotStatus,
   AppointmentType,
-  RecurrencePattern
-} from '../models/provider-availability.model';
-import { AppointmentSlot, AppointmentSlotDocument } from '../models/appointment-slot.model';
-import { Provider, ProviderDocument } from '../models/provider.model';
-import { 
-  CreateAvailabilityDto, 
+  RecurrencePattern,
+} from "../models/provider-availability.model";
+import {
+  AppointmentSlot,
+  AppointmentSlotDocument,
+} from "../models/appointment-slot.model";
+import { Provider, ProviderDocument } from "../models/provider.model";
+import {
+  CreateAvailabilityDto,
   UpdateAvailabilityDto,
   GetAvailabilityQueryDto,
   SearchAvailabilityQueryDto,
-  DeleteAvailabilityQueryDto
-} from '../dtos/provider-availability.dto';
-import { AvailabilityUtils } from '../utils/availability.utils';
+  DeleteAvailabilityQueryDto,
+} from "../dtos/provider-availability.dto";
+import { AvailabilityUtils } from "../utils/availability.utils";
 
 @Injectable()
 export class ProviderAvailabilityService {
   private readonly logger = new Logger(ProviderAvailabilityService.name);
 
   constructor(
-    @InjectModel(ProviderAvailability.name) 
+    @InjectModel(ProviderAvailability.name)
     private availabilityModel: Model<ProviderAvailabilityDocument>,
-    @InjectModel(AppointmentSlot.name) 
+    @InjectModel(AppointmentSlot.name)
     private appointmentSlotModel: Model<AppointmentSlotDocument>,
-    @InjectModel(Provider.name) 
+    @InjectModel(Provider.name)
     private providerModel: Model<ProviderDocument>,
     private availabilityUtils: AvailabilityUtils
   ) {}
@@ -48,10 +51,13 @@ export class ProviderAvailabilityService {
       // Validate provider exists
       const provider = await this.providerModel.findById(providerId);
       if (!provider) {
-        throw new HttpException({
-          success: false,
-          message: 'Provider not found'
-        }, HttpStatus.NOT_FOUND);
+        throw new HttpException(
+          {
+            success: false,
+            message: "Provider not found",
+          },
+          HttpStatus.NOT_FOUND
+        );
       }
 
       // Validate input data
@@ -63,7 +69,11 @@ export class ProviderAvailabilityService {
       const availabilitySlots: ProviderAvailabilityDocument[] = [];
       const appointmentSlots: AppointmentSlotDocument[] = [];
 
-      if (createDto.is_recurring && createDto.recurrence_pattern && createDto.recurrence_end_date) {
+      if (
+        createDto.is_recurring &&
+        createDto.recurrence_pattern &&
+        createDto.recurrence_end_date
+      ) {
         // Handle recurring availability
         const dates = this.availabilityUtils.generateRecurringDates(
           createDto.date,
@@ -77,10 +87,6 @@ export class ProviderAvailabilityService {
             { ...createDto, date },
             availabilitySlots
           );
-          
-          // Generate appointment slots for this availability
-          const slots = await this.generateAppointmentSlots(availability, appointmentSlots);
-          appointmentSlots.push(...slots);
         }
       } else {
         // Handle single availability
@@ -89,48 +95,64 @@ export class ProviderAvailabilityService {
           createDto,
           availabilitySlots
         );
-        
-        // Generate appointment slots for this availability
-        const slots = await this.generateAppointmentSlots(availability, appointmentSlots);
+      }
+
+      // Save all availability slots first
+      const savedAvailabilities = await this.availabilityModel.insertMany(
+        availabilitySlots
+      );
+
+      // Now generate appointment slots for each saved availability
+      for (const savedAvailability of savedAvailabilities) {
+        const slots = await this.generateAppointmentSlots(
+          savedAvailability,
+          []
+        );
         appointmentSlots.push(...slots);
       }
 
-      // Save all availability slots
-      const savedAvailabilities = await this.availabilityModel.insertMany(availabilitySlots);
-      
       // Save all appointment slots
-      const savedAppointmentSlots = await this.appointmentSlotModel.insertMany(appointmentSlots);
+      const savedAppointmentSlots = await this.appointmentSlotModel.insertMany(
+        appointmentSlots
+      );
 
       const totalSlots = savedAppointmentSlots.length;
       const dateRange = {
         start: createDto.date,
-        end: createDto.recurrence_end_date || createDto.date
+        end: createDto.recurrence_end_date || createDto.date,
       };
 
-      this.logger.log(`Created ${totalSlots} availability slots for provider ${providerId}`);
+      this.logger.log(
+        `Created ${totalSlots} availability slots for provider ${providerId}`
+      );
 
       return {
         success: true,
-        message: 'Availability slots created successfully',
+        message: "Availability slots created successfully",
         data: {
           availability_id: savedAvailabilities[0]?._id.toString(),
           slots_created: totalSlots,
           date_range: dateRange,
-          total_appointments_available: totalSlots
-        }
+          total_appointments_available: totalSlots,
+        },
       };
-
     } catch (error) {
-      this.logger.error(`Create availability error: ${error.message}`, error.stack);
-      
+      this.logger.error(
+        `Create availability error: ${error.message}`,
+        error.stack
+      );
+
       if (error instanceof HttpException) {
         throw error;
       }
 
-      throw new HttpException({
-        success: false,
-        message: 'Internal server error during availability creation'
-      }, HttpStatus.INTERNAL_SERVER_ERROR);
+      throw new HttpException(
+        {
+          success: false,
+          message: "Internal server error during availability creation",
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
     }
   }
 
@@ -148,10 +170,13 @@ export class ProviderAvailabilityService {
       // Validate provider exists
       const provider = await this.providerModel.findById(providerId);
       if (!provider) {
-        throw new HttpException({
-          success: false,
-          message: 'Provider not found'
-        }, HttpStatus.NOT_FOUND);
+        throw new HttpException(
+          {
+            success: false,
+            message: "Provider not found",
+          },
+          HttpStatus.NOT_FOUND
+        );
       }
 
       // Build query
@@ -159,8 +184,8 @@ export class ProviderAvailabilityService {
         provider_id: new Types.ObjectId(providerId),
         date: {
           $gte: query.start_date,
-          $lte: query.end_date
-        }
+          $lte: query.end_date,
+        },
       };
 
       if (query.status) {
@@ -172,7 +197,9 @@ export class ProviderAvailabilityService {
       }
 
       // Get availability data
-      const availabilities = await this.availabilityModel.find(filter).sort({ date: 1 });
+      const availabilities = await this.availabilityModel
+        .find(filter)
+        .sort({ date: 1 });
 
       // Group by date
       const availabilityByDate = new Map<string, any[]>();
@@ -185,9 +212,9 @@ export class ProviderAvailabilityService {
       }
 
       // Get appointment slots for these availabilities
-      const availabilityIds = availabilities.map(a => a._id);
+      const availabilityIds = availabilities.map((a) => a._id);
       const appointmentSlots = await this.appointmentSlotModel.find({
-        availability_id: { $in: availabilityIds }
+        availability_id: { $in: availabilityIds },
       });
 
       // Build response
@@ -199,22 +226,28 @@ export class ProviderAvailabilityService {
 
       for (const [date, dateAvailabilities] of availabilityByDate) {
         const slots: any[] = [];
-        
+
         for (const availability of dateAvailabilities) {
-          const dateSlots = appointmentSlots.filter(slot => 
+          const dateSlots = appointmentSlots.filter((slot) =>
             slot.availability_id.equals(availability._id)
           );
 
           for (const slot of dateSlots) {
             const slotData = {
               slot_id: slot._id.toString(),
-              start_time: this.formatTimeForDisplay(slot.slot_start_time, query.timezone),
-              end_time: this.formatTimeForDisplay(slot.slot_end_time, query.timezone),
+              start_time: this.formatTimeForDisplay(
+                slot.slot_start_time,
+                query.timezone
+              ),
+              end_time: this.formatTimeForDisplay(
+                slot.slot_end_time,
+                query.timezone
+              ),
               status: slot.status,
               appointment_type: slot.appointment_type,
               location: availability.location,
               pricing: availability.pricing,
-              special_requirements: availability.special_requirements
+              special_requirements: availability.special_requirements,
             };
 
             slots.push(slotData);
@@ -237,7 +270,7 @@ export class ProviderAvailabilityService {
 
         availability.push({
           date,
-          slots
+          slots,
         });
       }
 
@@ -249,23 +282,28 @@ export class ProviderAvailabilityService {
             total_slots: totalSlots,
             available_slots: availableSlots,
             booked_slots: bookedSlots,
-            cancelled_slots: cancelledSlots
+            cancelled_slots: cancelledSlots,
           },
-          availability
-        }
+          availability,
+        },
       };
-
     } catch (error) {
-      this.logger.error(`Get availability error: ${error.message}`, error.stack);
-      
+      this.logger.error(
+        `Get availability error: ${error.message}`,
+        error.stack
+      );
+
       if (error instanceof HttpException) {
         throw error;
       }
 
-      throw new HttpException({
-        success: false,
-        message: 'Internal server error while fetching availability'
-      }, HttpStatus.INTERNAL_SERVER_ERROR);
+      throw new HttpException(
+        {
+          success: false,
+          message: "Internal server error while fetching availability",
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
     }
   }
 
@@ -285,27 +323,33 @@ export class ProviderAvailabilityService {
       // Find the appointment slot
       const appointmentSlot = await this.appointmentSlotModel.findOne({
         _id: slotId,
-        provider_id: new Types.ObjectId(providerId)
+        provider_id: new Types.ObjectId(providerId),
       });
 
       if (!appointmentSlot) {
-        throw new HttpException({
-          success: false,
-          message: 'Slot not found'
-        }, HttpStatus.NOT_FOUND);
+        throw new HttpException(
+          {
+            success: false,
+            message: "Slot not found",
+          },
+          HttpStatus.NOT_FOUND
+        );
       }
 
       // Check if slot is already booked
       if (appointmentSlot.status === SlotStatus.BOOKED) {
-        throw new HttpException({
-          success: false,
-          message: 'Cannot update booked slot'
-        }, HttpStatus.BAD_REQUEST);
+        throw new HttpException(
+          {
+            success: false,
+            message: "Cannot update booked slot",
+          },
+          HttpStatus.BAD_REQUEST
+        );
       }
 
       // Update appointment slot
       const updateData: any = {};
-      
+
       if (updateDto.status) {
         updateData.status = updateDto.status;
       }
@@ -313,7 +357,7 @@ export class ProviderAvailabilityService {
       if (updateDto.start_time || updateDto.end_time) {
         // Update time slots - this would require more complex logic
         // For now, we'll just update the status
-        this.logger.warn('Time updates not implemented yet');
+        this.logger.warn("Time updates not implemented yet");
       }
 
       const updatedSlot = await this.appointmentSlotModel.findByIdAndUpdate(
@@ -328,31 +372,33 @@ export class ProviderAvailabilityService {
           appointmentSlot.availability_id,
           {
             ...(updateDto.notes && { notes: updateDto.notes }),
-            ...(updateDto.pricing && { pricing: updateDto.pricing })
+            ...(updateDto.pricing && { pricing: updateDto.pricing }),
           }
         );
       }
 
       return {
         success: true,
-        message: 'Slot updated successfully',
+        message: "Slot updated successfully",
         data: {
           slot_id: updatedSlot._id.toString(),
-          status: updatedSlot.status
-        }
+          status: updatedSlot.status,
+        },
       };
-
     } catch (error) {
       this.logger.error(`Update slot error: ${error.message}`, error.stack);
-      
+
       if (error instanceof HttpException) {
         throw error;
       }
 
-      throw new HttpException({
-        success: false,
-        message: 'Internal server error while updating slot'
-      }, HttpStatus.INTERNAL_SERVER_ERROR);
+      throw new HttpException(
+        {
+          success: false,
+          message: "Internal server error while updating slot",
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
     }
   }
 
@@ -372,32 +418,42 @@ export class ProviderAvailabilityService {
       // Find the appointment slot
       const appointmentSlot = await this.appointmentSlotModel.findOne({
         _id: slotId,
-        provider_id: new Types.ObjectId(providerId)
+        provider_id: new Types.ObjectId(providerId),
       });
 
       if (!appointmentSlot) {
-        throw new HttpException({
-          success: false,
-          message: 'Slot not found'
-        }, HttpStatus.NOT_FOUND);
+        throw new HttpException(
+          {
+            success: false,
+            message: "Slot not found",
+          },
+          HttpStatus.NOT_FOUND
+        );
       }
 
       // Check if slot is booked
       if (appointmentSlot.status === SlotStatus.BOOKED) {
-        throw new HttpException({
-          success: false,
-          message: 'Cannot delete booked slot'
-        }, HttpStatus.BAD_REQUEST);
+        throw new HttpException(
+          {
+            success: false,
+            message: "Cannot delete booked slot",
+          },
+          HttpStatus.BAD_REQUEST
+        );
       }
 
       if (query.delete_recurring) {
         // Delete all recurring slots
-        const availability = await this.availabilityModel.findById(appointmentSlot.availability_id);
+        const availability = await this.availabilityModel.findById(
+          appointmentSlot.availability_id
+        );
         if (availability && availability.is_recurring) {
           await this.appointmentSlotModel.deleteMany({
-            availability_id: appointmentSlot.availability_id
+            availability_id: appointmentSlot.availability_id,
           });
-          await this.availabilityModel.findByIdAndDelete(appointmentSlot.availability_id);
+          await this.availabilityModel.findByIdAndDelete(
+            appointmentSlot.availability_id
+          );
         }
       } else {
         // Delete only this specific slot
@@ -406,20 +462,22 @@ export class ProviderAvailabilityService {
 
       return {
         success: true,
-        message: 'Slot deleted successfully'
+        message: "Slot deleted successfully",
       };
-
     } catch (error) {
       this.logger.error(`Delete slot error: ${error.message}`, error.stack);
-      
+
       if (error instanceof HttpException) {
         throw error;
       }
 
-      throw new HttpException({
-        success: false,
-        message: 'Internal server error while deleting slot'
-      }, HttpStatus.INTERNAL_SERVER_ERROR);
+      throw new HttpException(
+        {
+          success: false,
+          message: "Internal server error while deleting slot",
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
     }
   }
 
@@ -432,7 +490,7 @@ export class ProviderAvailabilityService {
     try {
       // Build search filter
       const filter: any = {
-        status: SlotStatus.AVAILABLE
+        status: SlotStatus.AVAILABLE,
       };
 
       if (query.date) {
@@ -440,7 +498,7 @@ export class ProviderAvailabilityService {
       } else if (query.start_date && query.end_date) {
         filter.date = {
           $gte: query.start_date,
-          $lte: query.end_date
+          $lte: query.end_date,
         };
       }
 
@@ -449,27 +507,29 @@ export class ProviderAvailabilityService {
       }
 
       if (query.insurance_accepted !== undefined) {
-        filter['pricing.insurance_accepted'] = query.insurance_accepted;
+        filter["pricing.insurance_accepted"] = query.insurance_accepted;
       }
 
       if (query.max_price) {
-        filter['pricing.base_fee'] = { $lte: query.max_price };
+        filter["pricing.base_fee"] = { $lte: query.max_price };
       }
 
       // Get availabilities
       const availabilities = await this.availabilityModel.find(filter);
 
       // Get provider information
-      const providerIds = [...new Set(availabilities.map(a => a.provider_id))];
+      const providerIds = [
+        ...new Set(availabilities.map((a) => a.provider_id)),
+      ];
       const providers = await this.providerModel.find({
-        _id: { $in: providerIds }
+        _id: { $in: providerIds },
       });
 
       // Get appointment slots
-      const availabilityIds = availabilities.map(a => a._id);
+      const availabilityIds = availabilities.map((a) => a._id);
       const appointmentSlots = await this.appointmentSlotModel.find({
         availability_id: { $in: availabilityIds },
-        status: SlotStatus.AVAILABLE
+        status: SlotStatus.AVAILABLE,
       });
 
       // Build results
@@ -477,7 +537,8 @@ export class ProviderAvailabilityService {
       const searchCriteria: any = {};
 
       if (query.date) searchCriteria.date = query.date;
-      if (query.specialization) searchCriteria.specialization = query.specialization;
+      if (query.specialization)
+        searchCriteria.specialization = query.specialization;
       if (query.location) searchCriteria.location = query.location;
 
       // Group by provider
@@ -489,7 +550,7 @@ export class ProviderAvailabilityService {
           specialization: provider.specialization,
           years_of_experience: provider.years_of_experience,
           rating: 4.8, // This would come from a rating system
-          clinic_address: `${provider.clinic_address.street}, ${provider.clinic_address.city}, ${provider.clinic_address.state} ${provider.clinic_address.zip}`
+          clinic_address: `${provider.clinic_address.street}, ${provider.clinic_address.city}, ${provider.clinic_address.state} ${provider.clinic_address.zip}`,
         });
       }
 
@@ -498,37 +559,51 @@ export class ProviderAvailabilityService {
         if (!provider) continue;
 
         // Filter by specialization if specified
-        if (query.specialization && 
-            !provider.specialization.toLowerCase().includes(query.specialization.toLowerCase())) {
+        if (
+          query.specialization &&
+          !provider.specialization
+            .toLowerCase()
+            .includes(query.specialization.toLowerCase())
+        ) {
           continue;
         }
 
         // Filter by location if specified
-        if (query.location && 
-            !provider.clinic_address.toLowerCase().includes(query.location.toLowerCase())) {
+        if (
+          query.location &&
+          !provider.clinic_address
+            .toLowerCase()
+            .includes(query.location.toLowerCase())
+        ) {
           continue;
         }
 
-        const slots = appointmentSlots.filter(slot => 
+        const slots = appointmentSlots.filter((slot) =>
           slot.availability_id.equals(availability._id)
         );
 
         if (slots.length === 0) continue;
 
-        const availableSlots = slots.map(slot => ({
+        const availableSlots = slots.map((slot) => ({
           slot_id: slot._id.toString(),
           date: availability.date,
-          start_time: this.formatTimeForDisplay(slot.slot_start_time, query.timezone),
-          end_time: this.formatTimeForDisplay(slot.slot_end_time, query.timezone),
+          start_time: this.formatTimeForDisplay(
+            slot.slot_start_time,
+            query.timezone
+          ),
+          end_time: this.formatTimeForDisplay(
+            slot.slot_end_time,
+            query.timezone
+          ),
           appointment_type: slot.appointment_type,
           location: availability.location,
           pricing: availability.pricing,
-          special_requirements: availability.special_requirements
+          special_requirements: availability.special_requirements,
         }));
 
         results.push({
           provider,
-          available_slots: availableSlots
+          available_slots: availableSlots,
         });
       }
 
@@ -537,17 +612,22 @@ export class ProviderAvailabilityService {
         data: {
           search_criteria: searchCriteria,
           total_results: results.length,
-          results
-        }
+          results,
+        },
       };
-
     } catch (error) {
-      this.logger.error(`Search availability error: ${error.message}`, error.stack);
-      
-      throw new HttpException({
-        success: false,
-        message: 'Internal server error while searching availability'
-      }, HttpStatus.INTERNAL_SERVER_ERROR);
+      this.logger.error(
+        `Search availability error: ${error.message}`,
+        error.stack
+      );
+
+      throw new HttpException(
+        {
+          success: false,
+          message: "Internal server error while searching availability",
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
     }
   }
 
@@ -577,11 +657,12 @@ export class ProviderAvailabilityService {
       status: SlotStatus.AVAILABLE,
       max_appointments_per_slot: createDto.max_appointments_per_slot || 1,
       current_appointments: 0,
-      appointment_type: createDto.appointment_type || AppointmentType.CONSULTATION,
+      appointment_type:
+        createDto.appointment_type || AppointmentType.CONSULTATION,
       location: createDto.location,
       pricing: createDto.pricing,
       notes: createDto.notes,
-      special_requirements: createDto.special_requirements
+      special_requirements: createDto.special_requirements,
     });
 
     availabilitySlots.push(availability);
@@ -607,8 +688,13 @@ export class ProviderAvailabilityService {
     );
 
     for (const timeSlot of timeSlots) {
-      const slotStart = moment.tz(`${availability.date}T${timeSlot}:00`, availability.timezone);
-      const slotEnd = slotStart.clone().add(availability.slot_duration, 'minutes');
+      const slotStart = moment.tz(
+        `${availability.date}T${timeSlot}:00`,
+        availability.timezone
+      );
+      const slotEnd = slotStart
+        .clone()
+        .add(availability.slot_duration, "minutes");
 
       const appointmentSlot = new this.appointmentSlotModel({
         availability_id: availability._id,
@@ -617,13 +703,13 @@ export class ProviderAvailabilityService {
         slot_end_time: slotEnd.toDate(),
         status: SlotStatus.AVAILABLE,
         appointment_type: availability.appointment_type,
-        booking_reference: this.availabilityUtils.generateBookingReference()
+        booking_reference: this.availabilityUtils.generateBookingReference(),
       });
 
       slots.push(appointmentSlot);
     }
 
-    appointmentSlots.push(...slots);
+    // Don't modify the passed array, just return the new slots
     return slots;
   }
 
@@ -633,50 +719,74 @@ export class ProviderAvailabilityService {
    */
   private validateAvailabilityInput(createDto: CreateAvailabilityDto): void {
     if (!this.availabilityUtils.isValidDate(createDto.date)) {
-      throw new HttpException({
-        success: false,
-        message: 'Invalid date format'
-      }, HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        {
+          success: false,
+          message: "Invalid date format",
+        },
+        HttpStatus.BAD_REQUEST
+      );
     }
 
     if (!this.availabilityUtils.isValidTime(createDto.start_time)) {
-      throw new HttpException({
-        success: false,
-        message: 'Invalid start time format'
-      }, HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        {
+          success: false,
+          message: "Invalid start time format",
+        },
+        HttpStatus.BAD_REQUEST
+      );
     }
 
     if (!this.availabilityUtils.isValidTime(createDto.end_time)) {
-      throw new HttpException({
-        success: false,
-        message: 'Invalid end time format'
-      }, HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        {
+          success: false,
+          message: "Invalid end time format",
+        },
+        HttpStatus.BAD_REQUEST
+      );
     }
 
-    if (this.availabilityUtils.hasTimeConflict(
-      createDto.start_time,
-      createDto.end_time,
-      createDto.end_time,
-      createDto.start_time
-    )) {
-      throw new HttpException({
-        success: false,
-        message: 'Start time must be before end time'
-      }, HttpStatus.BAD_REQUEST);
+    if (
+      this.availabilityUtils.hasTimeConflict(
+        createDto.start_time,
+        createDto.end_time,
+        createDto.end_time,
+        createDto.start_time
+      )
+    ) {
+      throw new HttpException(
+        {
+          success: false,
+          message: "Start time must be before end time",
+        },
+        HttpStatus.BAD_REQUEST
+      );
     }
 
     if (this.availabilityUtils.isPastDate(createDto.date)) {
-      throw new HttpException({
-        success: false,
-        message: 'Cannot create availability for past dates'
-      }, HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        {
+          success: false,
+          message: "Cannot create availability for past dates",
+        },
+        HttpStatus.BAD_REQUEST
+      );
     }
 
-    if (createDto.is_recurring && (!createDto.recurrence_pattern || !createDto.recurrence_end_date)) {
-      throw new HttpException({
-        success: false,
-        message: 'Recurrence pattern and end date are required for recurring availability'
-      }, HttpStatus.BAD_REQUEST);
+    if (
+      createDto.is_recurring &&
+      (!createDto.recurrence_pattern || !createDto.recurrence_end_date)
+    ) {
+      throw new HttpException(
+        {
+          success: false,
+          message:
+            "Recurrence pattern and end date are required for recurring availability",
+        },
+        HttpStatus.BAD_REQUEST
+      );
     }
   }
 
@@ -691,20 +801,25 @@ export class ProviderAvailabilityService {
   ): Promise<void> {
     const existingAvailabilities = await this.availabilityModel.find({
       provider_id: new Types.ObjectId(providerId),
-      date: createDto.date
+      date: createDto.date,
     });
 
     for (const existing of existingAvailabilities) {
-      if (this.availabilityUtils.hasTimeConflict(
-        existing.start_time,
-        existing.end_time,
-        createDto.start_time,
-        createDto.end_time
-      )) {
-        throw new HttpException({
-          success: false,
-          message: 'Time conflict with existing availability'
-        }, HttpStatus.CONFLICT);
+      if (
+        this.availabilityUtils.hasTimeConflict(
+          existing.start_time,
+          existing.end_time,
+          createDto.start_time,
+          createDto.end_time
+        )
+      ) {
+        throw new HttpException(
+          {
+            success: false,
+            message: "Time conflict with existing availability",
+          },
+          HttpStatus.CONFLICT
+        );
       }
     }
   }
@@ -717,9 +832,9 @@ export class ProviderAvailabilityService {
    */
   private formatTimeForDisplay(dateTime: Date, timezone?: string): string {
     if (!timezone) {
-      return moment(dateTime).format('HH:mm');
+      return moment(dateTime).format("HH:mm");
     }
-    
-    return moment(dateTime).tz(timezone).format('HH:mm');
+
+    return moment(dateTime).tz(timezone).format("HH:mm");
   }
-} 
+}

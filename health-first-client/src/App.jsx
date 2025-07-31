@@ -10,6 +10,7 @@ import ProviderRegistration from "./components/ProviderRegistration";
 import PatientLogin from "./components/PatientLogin";
 import PatientRegistration from "./components/PatientRegistration";
 import ProviderAvailability from "./components/ProviderAvailability";
+import AvailabilitySearch from "./components/AvailabilitySearch";
 import Dashboard from "./components/Dashboard";
 import { authUtils } from "./services/api";
 import "./App.css";
@@ -113,6 +114,15 @@ function App() {
             element={
               <ProtectedRoute userType="provider">
                 <ProviderAvailability />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/availability/search"
+            element={
+              <ProtectedRoute userType="patient">
+                <AvailabilitySearch />
               </ProtectedRoute>
             }
           />

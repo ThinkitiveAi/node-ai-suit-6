@@ -160,9 +160,10 @@ export const patientAuthAPI = {
 
 // Provider Availability APIs
 export const providerAvailabilityAPI = {
-  // Get availability slots
-  getAvailability: async () => {
-    const response = await api.get('/v1/provider/availability');
+  // Get availability slots for a specific provider
+  getAvailability: async (providerId, query = {}) => {
+    const params = new URLSearchParams(query);
+    const response = await api.get(`/v1/provider/${providerId}/availability?${params}`);
     return response.data;
   },
 
@@ -179,8 +180,16 @@ export const providerAvailabilityAPI = {
   },
 
   // Delete availability slot
-  deleteAvailability: async (slotId) => {
-    const response = await api.delete(`/v1/provider/availability/${slotId}`);
+  deleteAvailability: async (slotId, query = {}) => {
+    const params = new URLSearchParams(query);
+    const response = await api.delete(`/v1/provider/availability/${slotId}?${params}`);
+    return response.data;
+  },
+
+  // Search for available slots (for patients)
+  searchAvailability: async (searchParams = {}) => {
+    const params = new URLSearchParams(searchParams);
+    const response = await api.get(`/v1/availability/search?${params}`);
     return response.data;
   }
 };

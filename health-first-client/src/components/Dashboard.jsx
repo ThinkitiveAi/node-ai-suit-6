@@ -72,6 +72,10 @@ const Dashboard = () => {
     navigate("/provider/availability");
   };
 
+  const handleAvailabilitySearchClick = () => {
+    navigate("/availability/search");
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -357,7 +361,10 @@ const Dashboard = () => {
             </div>
             <div className="p-6">
               <div className="space-y-3">
-                <button className="w-full flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                <button
+                  onClick={handleAvailabilitySearchClick}
+                  className="w-full flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
                   <Calendar className="w-4 h-4 mr-2" />
                   Book Appointment
                 </button>

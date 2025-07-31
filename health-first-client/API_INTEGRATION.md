@@ -24,10 +24,14 @@ This document describes the API integration between the HealthFirst frontend (Re
 
 ### Provider Availability
 
-- **GET** `/api/v1/provider/availability` - Get availability slots
+- **GET** `/api/v1/provider/:provider_id/availability` - Get availability slots for a specific provider
 - **POST** `/api/v1/provider/availability` - Create availability slot
-- **PUT** `/api/v1/provider/availability/:id` - Update availability slot
-- **DELETE** `/api/v1/provider/availability/:id` - Delete availability slot
+- **PUT** `/api/v1/provider/availability/:slot_id` - Update availability slot
+- **DELETE** `/api/v1/provider/availability/:slot_id` - Delete availability slot
+
+### Patient Availability Search
+
+- **GET** `/api/v1/availability/search` - Search for available appointment slots
 
 ## Frontend Integration
 
@@ -125,6 +129,98 @@ const registrationData = {
 }
 ```
 
+### Availability Data Structures
+
+#### Create Availability Request
+
+```javascript
+{
+  date: "2025-08-15",
+  start_time: "09:00",
+  end_time: "17:00",
+  timezone: "America/New_York",
+  slot_duration: 30,
+  break_duration: 15,
+  appointment_type: "consultation",
+  location: {
+    type: "clinic",
+    address: "123 Main St",
+    room_number: "101"
+  },
+  is_recurring: true,
+  recurrence_pattern: "weekly",
+  recurrence_end_date: "2025-09-15",
+  max_appointments_per_slot: 1,
+  pricing: {
+    base_fee: 100,
+    insurance_accepted: true,
+    currency: "USD"
+  },
+  special_requirements: ["wheelchair accessible"],
+  notes: "Regular consultation hours"
+}
+```
+
+#### Availability Search Request
+
+```javascript
+{
+  date: "2025-08-15",
+  start_date: "2025-08-15",
+  end_date: "2025-08-20",
+  specialization: "cardiology",
+  location: "New York, NY",
+  appointment_type: "consultation",
+  insurance_accepted: true,
+  max_price: 150,
+  timezone: "America/New_York",
+  available_only: true
+}
+```
+
+#### Availability Search Response
+
+```javascript
+{
+  success: true,
+  data: {
+    search_criteria: {
+      date: "2025-08-15",
+      specialization: "cardiology"
+    },
+    total_results: 2,
+    results: [
+      {
+        provider: {
+          id: "provider-id",
+          name: "Dr. John Doe",
+          specialization: "Cardiology",
+          years_of_experience: 10,
+          clinic_address: "123 Medical Center Dr, New York, NY 10001"
+        },
+        available_slots: [
+          {
+            slot_id: "slot-id",
+            start_time: "09:00",
+            end_time: "09:30",
+            status: "available",
+            appointment_type: "consultation",
+            location: {
+              type: "clinic",
+              address: "123 Main St"
+            },
+            pricing: {
+              base_fee: 100,
+              insurance_accepted: true
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
 ## Error Handling
 
 - Network errors are caught and displayed to users
@@ -166,7 +262,14 @@ npm run dev
 3. Test provider registration and login
 4. Test patient registration and login
 5. Verify dashboard functionality
-6. Test availability management (for providers)
+6. Test availability management (for providers):
+   - Navigate to Provider Availability page
+   - Create new availability slots
+   - View and manage existing slots
+7. Test availability search (for patients):
+   - Navigate to Availability Search page
+   - Search for available appointments
+   - Filter by specialization, location, date range
 
 ## Notes
 
