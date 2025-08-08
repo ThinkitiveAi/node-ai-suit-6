@@ -42,27 +42,38 @@ const ProviderAvailability = () => {
   const [showBulkEdit, setShowBulkEdit] = useState(false);
   const [editingSlot, setEditingSlot] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
 
-  // Sample availability data
+  // Availability data structure to match backend response
   const [availability, setAvailability] = useState([]);
+  const [availabilitySummary, setAvailabilitySummary] = useState({
+    total_slots: 0,
+    available_slots: 0,
+    booked_slots: 0,
+    cancelled_slots: 0,
+  });
 
   // Load availability data on component mount
   useEffect(() => {
     loadAvailabilityData();
-  }, []);
+  }, [currentDate, currentView]);
 
   const loadAvailabilityData = async () => {
     try {
+      setIsLoading(true);
+      setError(null);
+
       const userData = JSON.parse(localStorage.getItem("user_data") || "{}");
       const providerId = userData._id || userData.id;
 
       if (!providerId) {
         console.error("Provider ID not found in user data");
+        setError("Provider ID not found. Please login again.");
         return;
       }
 
       // Get current week's availability
-      const startDate = new Date();
+      const startDate = new Date(currentDate);
       startDate.setDate(startDate.getDate() - startDate.getDay()); // Start of week
       const endDate = new Date(startDate);
       endDate.setDate(endDate.getDate() + 6); // End of week
@@ -72,15 +83,38 @@ const ProviderAvailability = () => {
         end_date: endDate.toISOString().split("T")[0],
       };
 
+      console.log(
+        "Loading availability for provider:",
+        providerId,
+        "with query:",
+        query
+      );
+
       const response = await providerAvailabilityAPI.getAvailability(
         providerId,
         query
       );
+
+      console.log("Availability response:", response);
+
       if (response.success) {
         setAvailability(response.data.availability || []);
+        setAvailabilitySummary(
+          response.data.availability_summary || {
+            total_slots: 0,
+            available_slots: 0,
+            booked_slots: 0,
+            cancelled_slots: 0,
+          }
+        );
+      } else {
+        setError(response.message || "Failed to load availability");
       }
     } catch (error) {
       console.error("Error loading availability:", error);
+      setError("Failed to load availability. Please try again.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -116,9 +150,9 @@ const ProviderAvailability = () => {
       label: "General Consultation",
       color: "bg-blue-500",
     },
-    { value: "follow-up", label: "Follow-up", color: "bg-green-500" },
+    { value: "follow_up", label: "Follow-up", color: "bg-green-500" },
     { value: "emergency", label: "Emergency", color: "bg-red-500" },
-    { value: "procedure", label: "Procedure", color: "bg-purple-500" },
+    { value: "telemedicine", label: "Telemedicine", color: "bg-purple-500" },
     { value: "break", label: "Break", color: "bg-gray-500" },
   ];
 
@@ -181,9 +215,9 @@ const ProviderAvailability = () => {
   };
 
   const getSlotsForDate = (date) => {
-    return availability.filter(
-      (slot) => new Date(slot.date).toDateString() === date.toDateString()
-    );
+    const dateStr = date.toISOString().split("T")[0];
+    const dayAvailability = availability.find((day) => day.date === dateStr);
+    return dayAvailability ? dayAvailability.slots : [];
   };
 
   const handleDateChange = (direction) => {
@@ -240,11 +274,11 @@ const ProviderAvailability = () => {
   const handleEditSlot = (slot) => {
     setEditingSlot(slot);
     setFormData({
-      date: slot.date,
-      start_time: slot.start_time || slot.startTime,
-      end_time: slot.end_time || slot.endTime,
-      appointment_type: slot.appointment_type || slot.type,
-      slot_duration: slot.slot_duration || slot.duration,
+      date: slot.date || new Date().toISOString().split("T")[0],
+      start_time: slot.start_time || "09:00",
+      end_time: slot.end_time || "17:00",
+      appointment_type: slot.appointment_type || "consultation",
+      slot_duration: slot.slot_duration || 30,
       break_duration: slot.break_duration || 15,
       timezone: slot.timezone || "America/New_York",
       location: slot.location || {
@@ -267,13 +301,24 @@ const ProviderAvailability = () => {
     setShowEditForm(true);
   };
 
-  const handleDeleteSlot = (slotId) => {
-    setAvailability((prev) => prev.filter((slot) => slot.id !== slotId));
+  const handleDeleteSlot = async (slotId) => {
+    try {
+      const response = await providerAvailabilityAPI.deleteAvailability(slotId);
+      if (response.success) {
+        await loadAvailabilityData(); // Reload data
+      } else {
+        setError(response.message || "Failed to delete slot");
+      }
+    } catch (error) {
+      console.error("Error deleting slot:", error);
+      setError("Failed to delete slot. Please try again.");
+    }
   };
 
   const handleFormSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
+    setError(null);
 
     try {
       // Validate dates for recurring availability
@@ -282,23 +327,36 @@ const ProviderAvailability = () => {
         const endDate = new Date(formData.recurrence_end_date);
 
         if (endDate <= startDate) {
-          alert("Recurrence end date must be after the start date");
+          setError("Recurrence end date must be after the start date");
           setIsLoading(false);
           return;
         }
       }
 
+      // Validate that the date is not in the past
+      const selectedDate = new Date(formData.date);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      if (selectedDate < today) {
+        setError("Cannot create availability for past dates");
+        setIsLoading(false);
+        return;
+      }
+
       if (showEditForm && editingSlot) {
         // Edit existing slot
         const response = await providerAvailabilityAPI.updateAvailability(
-          editingSlot.id,
+          editingSlot.slot_id,
           formData
         );
         if (response.success) {
           await loadAvailabilityData(); // Reload data
+          setShowEditForm(false);
+          setEditingSlot(null);
+        } else {
+          setError(response.message || "Failed to update availability");
         }
-        setShowEditForm(false);
-        setEditingSlot(null);
       } else {
         // Add new slot
         // Clean up form data - remove recurrence fields if not recurring
@@ -308,13 +366,20 @@ const ProviderAvailability = () => {
           delete cleanFormData.recurrence_end_date;
         }
 
+        console.log("Submitting availability data:", cleanFormData);
+
         const response = await providerAvailabilityAPI.createAvailability(
           cleanFormData
         );
+
+        console.log("Create availability response:", response);
+
         if (response.success) {
           await loadAvailabilityData(); // Reload data
+          setShowAddForm(false);
+        } else {
+          setError(response.message || "Failed to create availability");
         }
-        setShowAddForm(false);
       }
 
       // Reset form data
@@ -345,6 +410,7 @@ const ProviderAvailability = () => {
       });
     } catch (error) {
       console.error("Error saving availability:", error);
+      setError("Failed to save availability. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -398,7 +464,7 @@ const ProviderAvailability = () => {
         <div className="max-h-96 overflow-y-auto">
           {timeSlots
             .filter((_, index) => index >= 16 && index <= 40)
-            .map((time, timeIndex) => (
+            .map((time) => (
               <div
                 key={time}
                 className="grid grid-cols-8 border-b hover:bg-gray-50"
@@ -408,9 +474,14 @@ const ProviderAvailability = () => {
                 </div>
                 {weekDays.map((day, dayIndex) => {
                   const dateStr = day.toISOString().split("T")[0];
-                  const slotsForTime = availability.filter(
-                    (slot) => slot.date === dateStr && slot.startTime === time
+                  const dayAvailability = availability.find(
+                    (day) => day.date === dateStr
                   );
+                  const slotsForTime = dayAvailability
+                    ? dayAvailability.slots.filter(
+                        (slot) => slot.start_time === time
+                      )
+                    : [];
 
                   return (
                     <div
@@ -419,16 +490,20 @@ const ProviderAvailability = () => {
                     >
                       {slotsForTime.map((slot) => (
                         <div
-                          key={slot.id}
+                          key={slot.slot_id}
                           className={`${getStatusColor(
                             slot.status
                           )} text-white text-xs p-1 rounded cursor-pointer hover:opacity-80 transition-opacity`}
                           onClick={() => handleEditSlot(slot)}
-                          title={`${slot.type} - ${slot.notes}`}
+                          title={`${slot.appointment_type} - ${
+                            slot.notes || "No notes"
+                          }`}
                         >
-                          <div className="font-medium">{slot.type}</div>
+                          <div className="font-medium">
+                            {slot.appointment_type}
+                          </div>
                           <div className="text-xs opacity-90">
-                            {slot.duration}min
+                            ${slot.pricing?.base_fee || 0}
                           </div>
                         </div>
                       ))}
@@ -459,56 +534,60 @@ const ProviderAvailability = () => {
         </div>
 
         <div className="max-h-96 overflow-y-auto">
-          {timeSlots
-            .filter((_, index) => index >= 16 && index <= 40)
-            .map((time) => {
-              const slot = daySlots.find((s) => s.startTime === time);
-
-              return (
-                <div
-                  key={time}
-                  className="flex items-center p-3 border-b hover:bg-gray-50"
-                >
-                  <div className="w-20 text-sm font-medium text-gray-600">
-                    {time}
-                  </div>
-                  <div className="flex-1 ml-4">
-                    {slot ? (
-                      <div className="flex items-center justify-between">
-                        <div
-                          className={`${getStatusColor(
-                            slot.status
-                          )} text-white px-3 py-2 rounded-lg flex-1 mr-4`}
-                        >
-                          <div className="font-medium capitalize">
-                            {slot.type}
-                          </div>
-                          <div className="text-sm opacity-90">{slot.notes}</div>
-                        </div>
-                        <div className="flex space-x-2">
-                          <button
-                            onClick={() => handleEditSlot(slot)}
-                            className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                          >
-                            <Edit className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteSlot(slot.id)}
-                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
+          {daySlots.length > 0 ? (
+            daySlots.map((slot) => (
+              <div
+                key={slot.slot_id}
+                className="flex items-center p-3 border-b hover:bg-gray-50"
+              >
+                <div className="w-20 text-sm font-medium text-gray-600">
+                  {slot.start_time} - {slot.end_time}
+                </div>
+                <div className="flex-1 ml-4">
+                  <div className="flex items-center justify-between">
+                    <div
+                      className={`${getStatusColor(
+                        slot.status
+                      )} text-white px-3 py-2 rounded-lg flex-1 mr-4`}
+                    >
+                      <div className="font-medium capitalize">
+                        {slot.appointment_type}
                       </div>
-                    ) : (
-                      <div className="text-gray-400 text-sm">
-                        No appointment scheduled
+                      <div className="text-sm opacity-90">
+                        ${slot.pricing?.base_fee || 0} -{" "}
+                        {slot.notes || "No notes"}
                       </div>
-                    )}
+                    </div>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => handleEditSlot(slot)}
+                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteSlot(slot.slot_id)}
+                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 </div>
-              );
-            })}
+              </div>
+            ))
+          ) : (
+            <div className="p-8 text-center text-gray-500">
+              <Calendar className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+              <p>No availability slots for this day</p>
+              <button
+                onClick={handleAddAvailability}
+                className="mt-4 text-blue-600 hover:text-blue-700 font-medium"
+              >
+                Add availability
+              </button>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -530,6 +609,7 @@ const ProviderAvailability = () => {
                   setShowAddForm(false);
                   setShowEditForm(false);
                   setEditingSlot(null);
+                  setError(null);
                 }}
                 className="text-gray-400 hover:text-gray-600"
               >
@@ -537,12 +617,16 @@ const ProviderAvailability = () => {
               </button>
             </div>
 
-            <form onSubmit={handleFormSubmit} className="space-y-4">
-              {/* Debug info */}
-              <div className="text-xs text-gray-500 mb-2">
-                Debug: showAddForm={showAddForm.toString()}, showEditForm=
-                {showEditForm.toString()}
+            {error && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                <div className="flex items-center">
+                  <AlertCircle className="w-4 h-4 text-red-500 mr-2" />
+                  <span className="text-sm text-red-700">{error}</span>
+                </div>
               </div>
+            )}
+
+            <form onSubmit={handleFormSubmit} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Date
@@ -552,6 +636,7 @@ const ProviderAvailability = () => {
                   name="date"
                   value={formData.date}
                   onChange={handleInputChange}
+                  min={new Date().toISOString().split("T")[0]}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   required
                 />
@@ -778,6 +863,7 @@ const ProviderAvailability = () => {
                           name="recurrence_end_date"
                           value={formData.recurrence_end_date}
                           onChange={handleInputChange}
+                          min={formData.date}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                           required={formData.is_recurring}
                         />
@@ -826,6 +912,7 @@ const ProviderAvailability = () => {
                     setShowAddForm(false);
                     setShowEditForm(false);
                     setEditingSlot(null);
+                    setError(null);
                   }}
                   className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
                 >
@@ -859,7 +946,7 @@ const ProviderAvailability = () => {
                   Availability Management
                 </h1>
                 <p className="text-sm text-gray-500">
-                  Dr. Sarah Johnson - Cardiology
+                  Manage your appointment availability
                 </p>
               </div>
             </div>
@@ -881,6 +968,75 @@ const ProviderAvailability = () => {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {/* Error Display */}
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+            <div className="flex items-center">
+              <AlertCircle className="w-5 h-5 text-red-500 mr-2" />
+              <span className="text-red-700">{error}</span>
+            </div>
+          </div>
+        )}
+
+        {/* Summary Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+          <div className="bg-white rounded-lg shadow-sm border p-6">
+            <div className="flex items-center">
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <Calendar className="w-6 h-6 text-blue-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Total Slots</p>
+                <p className="text-2xl font-semibold text-gray-900">
+                  {availabilitySummary.total_slots}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-sm border p-6">
+            <div className="flex items-center">
+              <div className="p-2 bg-green-100 rounded-lg">
+                <Check className="w-6 h-6 text-green-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Available</p>
+                <p className="text-2xl font-semibold text-gray-900">
+                  {availabilitySummary.available_slots}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-sm border p-6">
+            <div className="flex items-center">
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <User className="w-6 h-6 text-blue-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Booked</p>
+                <p className="text-2xl font-semibold text-gray-900">
+                  {availabilitySummary.booked_slots}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-sm border p-6">
+            <div className="flex items-center">
+              <div className="p-2 bg-red-100 rounded-lg">
+                <X className="w-6 h-6 text-red-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Cancelled</p>
+                <p className="text-2xl font-semibold text-gray-900">
+                  {availabilitySummary.cancelled_slots}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           {/* Sidebar */}
           <div className="lg:col-span-1">
@@ -922,7 +1078,7 @@ const ProviderAvailability = () => {
                 </h3>
                 <div className="flex items-center justify-between">
                   <button
-                    onClick={() => handleDateChange("prev")}
+                    onClick={() => handleDateChange(-1)}
                     className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
                   >
                     <ChevronLeft className="w-4 h-4" />
@@ -934,7 +1090,7 @@ const ProviderAvailability = () => {
                     Today
                   </button>
                   <button
-                    onClick={() => handleDateChange("next")}
+                    onClick={() => handleDateChange(1)}
                     className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
                   >
                     <ChevronRight className="w-4 h-4" />
@@ -1005,14 +1161,27 @@ const ProviderAvailability = () => {
 
           {/* Main Calendar Area */}
           <div className="lg:col-span-3">
-            {currentView === "week" && renderWeekView()}
-            {currentView === "day" && renderDayView()}
-            {currentView === "month" && (
-              <div className="bg-white rounded-lg shadow-sm border p-6">
-                <p className="text-gray-500 text-center">
-                  Month view coming soon...
-                </p>
+            {isLoading ? (
+              <div className="bg-white rounded-lg shadow-sm border p-12">
+                <div className="flex items-center justify-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                  <span className="ml-3 text-gray-600">
+                    Loading availability...
+                  </span>
+                </div>
               </div>
+            ) : (
+              <>
+                {currentView === "week" && renderWeekView()}
+                {currentView === "day" && renderDayView()}
+                {currentView === "month" && (
+                  <div className="bg-white rounded-lg shadow-sm border p-6">
+                    <p className="text-gray-500 text-center">
+                      Month view coming soon...
+                    </p>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>

@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        .success {
+            background-color: #d4edda;
+            border-color: #c3e6cb;
+            color: #155724;
+        }
+        .error {
+            background-color: #f8d7da;
+            border-color: #f5c6cb;
+            color: #721c24;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        pre {
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>HealthFirst API Test</h1>
+    
+    <div class="test-section">
+        <h2>Test GET Availability</h2>
+        <button onclick="testGetAvailability()">Test GET Availability</button>
+        <div id="getResult"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test CREATE Availability</h2>
+        <button onclick="testCreateAvailability()">Test CREATE Availability</button>
+        <div id="createResult"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:3000/api';
+        const PROVIDER_ID = '688a08b87a695b7b955e5c84';
+
+        async function testGetAvailability() {
+            const resultDiv = document.getElementById('getResult');
+            resultDiv.innerHTML = '<p>Testing...</p>';
+            
+            try {
+                const response = await fetch(`${API_BASE}/v1/provider/${PROVIDER_ID}/availability?start_date=2025-08-16&end_date=2025-08-16`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.className = 'test-section success';
+                    resultDiv.innerHTML = `
+                        <h3>✅ GET Availability Success</h3>
+                        <p><strong>Status:</strong> ${response.status}</p>
+                        <p><strong>Total Slots:</strong> ${data.data.availability_summary.total_slots}</p>
+                        <p><strong>Available Slots:</strong> ${data.data.availability_summary.available_slots}</p>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                } else {
+                    resultDiv.className = 'test-section error';
+                    resultDiv.innerHTML = `
+                        <h3>❌ GET Availability Failed</h3>
+                        <p><strong>Status:</strong> ${response.status}</p>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.className = 'test-section error';
+                resultDiv.innerHTML = `
+                    <h3>❌ GET Availability Error</h3>
+                    <p><strong>Error:</strong> ${error.message}</p>
+                `;
+            }
+        }
+
+        async function testCreateAvailability() {
+            const resultDiv = document.getElementById('createResult');
+            resultDiv.innerHTML = '<p>Testing...</p>';
+            
+            const testData = {
+                date: "2025-08-18",
+                start_time: "10:00",
+                end_time: "14:00",
+                timezone: "America/New_York",
+                slot_duration: 30,
+                break_duration: 15,
+                appointment_type: "consultation",
+                location: {
+                    type: "clinic",
+                    address: "123 Medical Center Dr",
+                    room_number: "Room 205"
+                },
+                pricing: {
+                    base_fee: 150,
+                    insurance_accepted: true,
+                    currency: "USD"
+                },
+                notes: "Test consultation slots"
+            };
+            
+            try {
+                const response = await fetch(`${API_BASE}/v1/provider/availability`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(testData)
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.className = 'test-section success';
+                    resultDiv.innerHTML = `
+                        <h3>✅ CREATE Availability Success</h3>
+                        <p><strong>Status:</strong> ${response.status}</p>
+                        <p><strong>Message:</strong> ${data.message}</p>
+                        <p><strong>Slots Created:</strong> ${data.data.slots_created}</p>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                } else {
+                    resultDiv.className = 'test-section error';
+                    resultDiv.innerHTML = `
+                        <h3>❌ CREATE Availability Failed</h3>
+                        <p><strong>Status:</strong> ${response.status}</p>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.className = 'test-section error';
+                resultDiv.innerHTML = `
+                    <h3>❌ CREATE Availability Error</h3>
+                    <p><strong>Error:</strong> ${error.message}</p>
+                `;
+            }
+        }
+
+        // Auto-run tests on page load
+        window.onload = function() {
+            setTimeout(testGetAvailability, 1000);
+            setTimeout(testCreateAvailability, 2000);
+        };
+    </script>
+</body>
+</html> 

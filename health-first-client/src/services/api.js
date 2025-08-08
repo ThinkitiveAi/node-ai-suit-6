@@ -188,8 +188,52 @@ export const providerAvailabilityAPI = {
 
   // Search for available slots (for patients)
   searchAvailability: async (searchParams = {}) => {
-    const params = new URLSearchParams(searchParams);
+    // Convert boolean values to proper format for URLSearchParams
+    const processedParams = { ...searchParams };
+    
+    // Handle boolean values that need to be converted to strings
+    if (processedParams.available_only !== undefined) {
+      processedParams.available_only = processedParams.available_only.toString();
+    }
+    if (processedParams.insurance_accepted !== undefined) {
+      processedParams.insurance_accepted = processedParams.insurance_accepted.toString();
+    }
+    
+    const params = new URLSearchParams(processedParams);
     const response = await api.get(`/v1/availability/search?${params}`);
+    return response.data;
+  }
+};
+
+// Appointment APIs
+export const appointmentAPI = {
+  // Book an appointment
+  bookAppointment: async (bookingData) => {
+    const response = await api.post('/v1/appointments/book', bookingData);
+    return response.data;
+  },
+
+  // Get patient appointments
+  getPatientAppointments: async (patientId, query = {}) => {
+    // Convert numeric values to proper format for URLSearchParams
+    const processedParams = { ...query };
+    
+    // Handle numeric values that need to be converted to strings
+    if (processedParams.page !== undefined) {
+      processedParams.page = processedParams.page.toString();
+    }
+    if (processedParams.limit !== undefined) {
+      processedParams.limit = processedParams.limit.toString();
+    }
+    
+    const params = new URLSearchParams(processedParams);
+    const response = await api.get(`/v1/appointments/patient/${patientId}?${params}`);
+    return response.data;
+  },
+
+  // Cancel an appointment
+  cancelAppointment: async (appointmentId, cancelData = {}) => {
+    const response = await api.put(`/v1/appointments/${appointmentId}/cancel`, cancelData);
     return response.data;
   }
 };

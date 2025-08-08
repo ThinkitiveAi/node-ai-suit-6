@@ -14,7 +14,7 @@ import {
   Matches,
   IsDateString,
 } from "class-validator";
-import { Type } from "class-transformer";
+import { Type, Transform } from "class-transformer";
 import {
   RecurrencePattern,
   AppointmentType,
@@ -352,6 +352,11 @@ export class SearchAvailabilityQueryDto {
   })
   @IsOptional()
   @IsBoolean()
+  @Transform(({ value }) => {
+    if (value === "true") return true;
+    if (value === "false") return false;
+    return value;
+  })
   insurance_accepted?: boolean;
 
   @ApiProperty({ description: "Maximum price", required: false })
@@ -369,6 +374,11 @@ export class SearchAvailabilityQueryDto {
   @ApiProperty({ description: "Show only available slots", default: true })
   @IsOptional()
   @IsBoolean()
+  @Transform(({ value }) => {
+    if (value === "true") return true;
+    if (value === "false") return false;
+    return value;
+  })
   available_only?: boolean;
 }
 

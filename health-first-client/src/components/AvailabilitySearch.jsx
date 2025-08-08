@@ -6,8 +6,12 @@ import {
   Clock,
   DollarSign,
   Filter,
+  BookOpen,
+  X,
+  Check,
+  AlertCircle,
 } from "lucide-react";
-import { providerAvailabilityAPI } from "../services/api";
+import { providerAvailabilityAPI, appointmentAPI } from "../services/api";
 
 const AvailabilitySearch = () => {
   const [searchParams, setSearchParams] = useState({
@@ -17,7 +21,7 @@ const AvailabilitySearch = () => {
     specialization: "",
     location: "",
     appointment_type: "",
-    insurance_accepted: "",
+    insurance_accepted: undefined, // Changed from "" to undefined for boolean handling
     max_price: "",
     timezone: "America/New_York",
     available_only: true,
@@ -26,6 +30,11 @@ const AvailabilitySearch = () => {
   const [searchResults, setSearchResults] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
+  const [selectedSlot, setSelectedSlot] = useState(null);
+  const [showBookingModal, setShowBookingModal] = useState(false);
+  const [isBooking, setIsBooking] = useState(false);
+  const [bookingError, setBookingError] = useState(null);
+  const [bookingSuccess, setBookingSuccess] = useState(false);
 
   const appointmentTypes = [
     { value: "consultation", label: "General Consultation" },
@@ -36,10 +45,19 @@ const AvailabilitySearch = () => {
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setSearchParams((prev) => ({
-      ...prev,
-      [name]: type === "checkbox" ? checked : value,
-    }));
+
+    // Handle boolean fields specifically
+    if (name === "insurance_accepted") {
+      setSearchParams((prev) => ({
+        ...prev,
+        [name]: value === "true" ? true : value === "false" ? false : undefined,
+      }));
+    } else {
+      setSearchParams((prev) => ({
+        ...prev,
+        [name]: type === "checkbox" ? checked : value,
+      }));
+    }
   };
 
   const handleSearch = async (e) => {
@@ -48,9 +66,11 @@ const AvailabilitySearch = () => {
     setHasSearched(true);
 
     try {
-      // Remove empty values
+      // Remove empty values and undefined values
       const params = Object.fromEntries(
-        Object.entries(searchParams).filter(([, value]) => value !== "")
+        Object.entries(searchParams).filter(
+          ([, value]) => value !== "" && value !== undefined && value !== null
+        )
       );
 
       const response = await providerAvailabilityAPI.searchAvailability(params);
@@ -75,13 +95,70 @@ const AvailabilitySearch = () => {
       specialization: "",
       location: "",
       appointment_type: "",
-      insurance_accepted: "",
+      insurance_accepted: undefined,
       max_price: "",
       timezone: "America/New_York",
       available_only: true,
     });
     setSearchResults([]);
     setHasSearched(false);
+  };
+
+  const handleBookAppointment = (slot) => {
+    setSelectedSlot(slot);
+    setShowBookingModal(true);
+    setBookingError(null);
+    setBookingSuccess(false);
+  };
+
+  const handleConfirmBooking = async () => {
+    if (!selectedSlot) return;
+
+    setIsBooking(true);
+    setBookingError(null);
+
+    try {
+      const userData = JSON.parse(localStorage.getItem("user_data") || "{}");
+      const patientId = userData._id || userData.id;
+
+      if (!patientId) {
+        setBookingError("Patient ID not found. Please login again.");
+        return;
+      }
+
+      const bookingData = {
+        slot_id: selectedSlot.slot_id,
+        patient_id: patientId,
+        appointment_type: selectedSlot.appointment_type,
+        special_requirements: selectedSlot.special_requirements || [],
+      };
+
+      const response = await appointmentAPI.bookAppointment(bookingData);
+
+      if (response.success) {
+        setBookingSuccess(true);
+        // Refresh search results to update availability
+        setTimeout(() => {
+          handleSearch({ preventDefault: () => {} });
+        }, 2000);
+      } else {
+        setBookingError(response.message || "Failed to book appointment");
+      }
+    } catch (error) {
+      console.error("Error booking appointment:", error);
+      setBookingError(
+        error.response?.data?.message || "Failed to book appointment"
+      );
+    } finally {
+      setIsBooking(false);
+    }
+  };
+
+  const closeBookingModal = () => {
+    setShowBookingModal(false);
+    setSelectedSlot(null);
+    setBookingError(null);
+    setBookingSuccess(false);
   };
 
   return (
@@ -323,6 +400,7 @@ const AvailabilitySearch = () => {
                                   <div
                                     key={slotIndex}
                                     className="p-2 border border-gray-200 rounded text-sm text-center hover:bg-gray-50 cursor-pointer"
+                                    onClick={() => handleBookAppointment(slot)}
                                   >
                                     <div className="font-medium">
                                       {slot.start_time}
@@ -355,6 +433,114 @@ const AvailabilitySearch = () => {
           </div>
         )}
       </div>
+
+      {/* Booking Modal */}
+      {showBookingModal && selectedSlot && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">
+                Book Appointment
+              </h3>
+              <button
+                onClick={closeBookingModal}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {bookingSuccess ? (
+              <div className="text-center">
+                <Check className="w-12 h-12 text-green-500 mx-auto mb-4" />
+                <h4 className="text-lg font-medium text-gray-900 mb-2">
+                  Appointment Booked Successfully!
+                </h4>
+                <p className="text-gray-600 mb-4">
+                  Your appointment has been confirmed. You will receive a
+                  confirmation email shortly.
+                </p>
+                <button
+                  onClick={closeBookingModal}
+                  className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="mb-4">
+                  <h4 className="font-medium text-gray-900 mb-2">
+                    Appointment Details
+                  </h4>
+                  <div className="bg-gray-50 p-3 rounded">
+                    <div className="flex justify-between mb-1">
+                      <span className="text-gray-600">Date:</span>
+                      <span className="font-medium">{selectedSlot.date}</span>
+                    </div>
+                    <div className="flex justify-between mb-1">
+                      <span className="text-gray-600">Time:</span>
+                      <span className="font-medium">
+                        {selectedSlot.start_time} - {selectedSlot.end_time}
+                      </span>
+                    </div>
+                    <div className="flex justify-between mb-1">
+                      <span className="text-gray-600">Type:</span>
+                      <span className="font-medium capitalize">
+                        {selectedSlot.appointment_type}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Price:</span>
+                      <span className="font-medium">
+                        ${selectedSlot.pricing?.base_fee || "N/A"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {bookingError && (
+                  <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                    <div className="flex items-center">
+                      <AlertCircle className="w-4 h-4 text-red-500 mr-2" />
+                      <span className="text-red-700 text-sm">
+                        {bookingError}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex space-x-3">
+                  <button
+                    onClick={closeBookingModal}
+                    className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                    disabled={isBooking}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleConfirmBooking}
+                    disabled={isBooking}
+                    className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                  >
+                    {isBooking ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Booking...
+                      </>
+                    ) : (
+                      <>
+                        <BookOpen className="w-4 h-4 mr-2" />
+                        Confirm Booking
+                      </>
+                    )}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

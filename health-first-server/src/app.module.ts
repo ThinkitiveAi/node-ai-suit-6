@@ -9,6 +9,7 @@ import { AuthModule } from "./modules/auth.module";
 import { PatientModule } from "./modules/patient.module";
 import { PatientAuthModule } from "./modules/patient-auth.module";
 import { ProviderAvailabilityModule } from "./modules/provider-availability.module";
+import { AppointmentModule } from "./modules/appointment.module";
 
 console.log("mongoodo: ", databaseConfig.uri);
 
@@ -26,6 +27,7 @@ console.log("mongoodo: ", databaseConfig.uri);
     PatientModule,
     PatientAuthModule,
     ProviderAvailabilityModule,
+    AppointmentModule,
   ],
   controllers: [AppController],
   providers: [AppService],

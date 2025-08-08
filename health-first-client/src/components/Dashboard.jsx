@@ -24,6 +24,7 @@ import {
   MapPin,
 } from "lucide-react";
 import { authUtils, providerAvailabilityAPI } from "../services/api";
+import Appointments from "./Appointments";
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -492,16 +493,7 @@ const Dashboard = () => {
           ) : (
             <PatientDashboard />
           ))}
-        {activeTab === "appointments" && (
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">
-              Appointments
-            </h2>
-            <p className="text-gray-500">
-              Appointment management coming soon...
-            </p>
-          </div>
-        )}
+        {activeTab === "appointments" && <Appointments />}
         {activeTab === "patients" && (
           <div className="bg-white rounded-lg shadow p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">
